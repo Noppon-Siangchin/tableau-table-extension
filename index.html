@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>SuperTable</title>
+  <link rel="stylesheet" href="css/main.css"/>
+</head>
+<body>
+
+<!-- Toolbar -->
+<div id="toolbar">
+  <div class="toolbar-left">
+    <input type="text" id="global-search" placeholder="Search all columns…" autocomplete="off"/>
+    <span id="row-count" class="row-count"></span>
+  </div>
+  <div class="toolbar-right">
+    <button id="btn-columns" title="Show/hide columns">&#9776; Columns</button>
+    <button id="btn-configure" title="Configure worksheet">&#9881; Configure</button>
+    <button id="btn-export-csv" title="Export CSV">&#128196; CSV</button>
+    <button id="btn-export-excel" title="Export Excel">&#128202; Excel</button>
+  </div>
+</div>
+
+<!-- Table container -->
+<div id="table-container">
+  <table id="super-table">
+    <thead id="table-head"></thead>
+    <tbody id="table-body"></tbody>
+  </table>
+  <div id="empty-message" class="empty-message" style="display:none;">
+    No data to display. Right-click &rarr; Configure to select a worksheet.
+  </div>
+</div>
+
+<!-- Pagination -->
+<div id="pagination-bar">
+  <div class="pagination-left">
+    <label>Rows per page:
+      <select id="page-size">
+        <option value="25">25</option>
+        <option value="50" selected>50</option>
+        <option value="100">100</option>
+        <option value="250">250</option>
+        <option value="500">500</option>
+      </select>
+    </label>
+  </div>
+  <div class="pagination-center" id="page-buttons"></div>
+  <div class="pagination-right">
+    <span id="page-info"></span>
+  </div>
+</div>
+
+<!-- Shared filter dropdown (positioned dynamically) -->
+<div id="filter-dropdown" class="filter-dropdown" style="display:none;">
+  <!-- TEXT filter section -->
+  <div id="filter-text-section">
+    <div class="filter-search-wrap">
+      <input type="text" id="filter-search" placeholder="Search values…" autocomplete="off"/>
+    </div>
+    <div class="filter-actions">
+      <button id="filter-select-all">Select All</button>
+      <button id="filter-clear-all">Clear All</button>
+    </div>
+    <div id="filter-list" class="filter-list"></div>
+  </div>
+  <!-- NUMBER filter section -->
+  <div id="filter-number-section" class="filter-range-section" style="display:none;">
+    <label class="filter-range-label">
+      Min
+      <input type="number" id="filter-num-min" placeholder="No minimum" step="any"/>
+    </label>
+    <label class="filter-range-label">
+      Max
+      <input type="number" id="filter-num-max" placeholder="No maximum" step="any"/>
+    </label>
+  </div>
+  <!-- DATE filter section -->
+  <div id="filter-date-section" class="filter-range-section" style="display:none;">
+    <label class="filter-range-label">
+      From
+      <input type="date" id="filter-date-from"/>
+    </label>
+    <label class="filter-range-label">
+      To
+      <input type="date" id="filter-date-to"/>
+    </label>
+  </div>
+  <!-- Shared footer -->
+  <div class="filter-footer">
+    <button id="filter-apply" class="btn-primary">Apply</button>
+    <button id="filter-cancel">Cancel</button>
+  </div>
+</div>
+
+<!-- Column picker dropdown (positioned dynamically) -->
+<div id="column-dropdown" class="column-dropdown" style="display:none;">
+  <div class="column-dropdown-header">Show/Hide Columns</div>
+  <div class="column-actions">
+    <button id="col-select-all">Select All</button>
+    <button id="col-clear-all">Clear All</button>
+  </div>
+  <div id="column-list" class="column-list"></div>
+  <div class="column-footer">
+    <button id="col-apply" class="btn-primary">Apply</button>
+    <button id="col-cancel">Cancel</button>
+  </div>
+</div>
+
+<!-- Tableau Extensions Library -->
+<script src="lib/tableau.extensions.1.latest.min.js"></script>
+
+<!-- SheetJS for Excel export -->
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+
+<!-- App modules (order matters) -->
+<script src="js/dataManager.js"></script>
+<script src="js/tableRenderer.js"></script>
+<script src="js/sortManager.js"></script>
+<script src="js/filterManager.js"></script>
+<script src="js/paginationManager.js"></script>
+<script src="js/exportManager.js"></script>
+<script src="js/app.js"></script>
+
+</body>
+</html>

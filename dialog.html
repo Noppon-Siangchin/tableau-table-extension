@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>SuperTable – Configure</title>
+  <link rel="stylesheet" href="css/dialog.css"/>
+</head>
+<body>
+
+  <!-- Step 1: Worksheet selection -->
+  <div id="step-worksheet">
+    <h2>Configure SuperTable</h2>
+    <p class="subtitle">Step 1: Select a worksheet to display as a table.</p>
+
+    <ul id="worksheet-list" class="worksheet-list">
+      <li class="no-worksheets">Loading worksheets…</li>
+    </ul>
+
+    <div class="dialog-footer">
+      <button id="btn-cancel">Cancel</button>
+      <button id="btn-next" class="btn-primary" disabled>Next &rarr;</button>
+    </div>
+  </div>
+
+  <!-- Step 2: Field selection -->
+  <div id="step-fields" style="display:none;">
+    <h2>Configure SuperTable</h2>
+    <p class="subtitle">Step 2: Select fields, rename, and set types.</p>
+
+    <div class="field-actions">
+      <button id="field-select-all">Select All</button>
+      <button id="field-clear-all">Clear All</button>
+    </div>
+
+    <div id="field-list" class="field-list">
+      <div class="loading-fields">Loading fields…</div>
+    </div>
+
+    <div class="dialog-footer">
+      <button id="btn-back">&larr; Back</button>
+      <button id="btn-cancel2">Cancel</button>
+      <button id="btn-ok" class="btn-primary">OK</button>
+    </div>
+  </div>
+
+  <!-- Tableau Extensions Library -->
+  <script src="lib/tableau.extensions.1.latest.min.js"></script>
+  <script src="js/dialog.js"></script>
+
+</body>
+</html>

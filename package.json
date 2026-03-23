@@ -1,0 +1,13 @@
+{
+  "name": "tableau-supertable-extension",
+  "version": "1.0.0",
+  "description": "Tableau Dashboard Extension – SuperTable with sorting, filtering, pagination, and export",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "private": true,
+  "dependencies": {
+    "tableau-extensions-api": "^1.14.1"
+  }
+}

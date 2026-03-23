@@ -1,0 +1,278 @@
+/* ========== Dialog Styles ========== */
+:root {
+  --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --color-bg: #ffffff;
+  --color-surface: #f8f9fa;
+  --color-border: #dee2e6;
+  --color-text: #212529;
+  --color-text-secondary: #6c757d;
+  --color-primary: #0d6efd;
+  --color-primary-hover: #0b5ed7;
+  --color-primary-light: #e7f1ff;
+  --radius: 4px;
+  --transition: 150ms ease;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-family);
+  font-size: 14px;
+  color: var(--color-text);
+  background: var(--color-bg);
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+h2 {
+  font-size: 18px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.subtitle {
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  margin-bottom: 20px;
+}
+
+/* Worksheet list */
+.worksheet-list {
+  flex: 1;
+  list-style: none;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  overflow-y: auto;
+  max-height: 300px;
+}
+
+.worksheet-list li {
+  padding: 10px 14px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--color-border);
+  transition: background var(--transition);
+  font-size: 13px;
+}
+
+.worksheet-list li:last-child {
+  border-bottom: none;
+}
+
+.worksheet-list li:hover {
+  background: var(--color-primary-light);
+}
+
+.worksheet-list li.selected {
+  background: var(--color-primary);
+  color: #fff;
+}
+
+.no-worksheets {
+  padding: 20px;
+  text-align: center;
+  color: var(--color-text-secondary);
+}
+
+/* Footer buttons */
+.dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 20px;
+}
+
+.dialog-footer button {
+  padding: 8px 20px;
+  font-size: 13px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-bg);
+  cursor: pointer;
+  transition: background var(--transition);
+}
+
+.dialog-footer button:hover {
+  background: var(--color-surface);
+}
+
+.dialog-footer .btn-primary {
+  background: var(--color-primary);
+  color: #fff;
+  border-color: var(--color-primary);
+}
+
+.dialog-footer .btn-primary:hover {
+  background: var(--color-primary-hover);
+}
+
+.dialog-footer .btn-primary:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* ========== Field Selection (Step 2) ========== */
+.field-actions {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.field-actions button {
+  background: none;
+  border: none;
+  color: var(--color-primary);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 2px 0;
+}
+
+.field-actions button:hover {
+  text-decoration: underline;
+}
+
+.field-list {
+  flex: 1;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  overflow-y: auto;
+  max-height: 300px;
+  padding: 4px 0;
+}
+
+.field-list .field-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  font-size: 13px;
+  transition: background var(--transition);
+}
+
+.field-list .field-item:hover {
+  background: var(--color-primary-light);
+}
+
+.field-list .field-item input[type="checkbox"] {
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.field-list .field-item .field-name {
+  width: var(--field-name-width, 120px);
+  min-width: var(--field-name-width, 120px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+}
+
+.field-list .field-item .field-rename {
+  flex: 1;
+  min-width: 0;
+  padding: 3px 6px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  font-size: 12px;
+  outline: none;
+  transition: border-color var(--transition);
+}
+
+.field-list .field-item .field-rename:focus {
+  border-color: var(--color-primary);
+}
+
+.field-list .field-item .field-type-select {
+  width: 90px;
+  min-width: 90px;
+  padding: 3px 4px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  font-size: 12px;
+  background: var(--color-bg);
+  cursor: pointer;
+}
+
+.loading-fields {
+  padding: 20px;
+  text-align: center;
+  color: var(--color-text-secondary);
+}
+
+/* ========== Resize Handle (between field-name and field-rename) ========== */
+.field-name-resize {
+  width: 5px;
+  flex-shrink: 0;
+  cursor: col-resize;
+  position: relative;
+  align-self: stretch;
+}
+
+.field-name-resize::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  left: 2px;
+  width: 1px;
+  background: transparent;
+  transition: background var(--transition);
+}
+
+.field-name-resize:hover::after,
+body.col-resizing .field-name-resize::after {
+  background: var(--color-border);
+}
+
+body.col-resizing {
+  cursor: col-resize !important;
+  user-select: none;
+}
+
+body.col-resizing * {
+  cursor: col-resize !important;
+}
+
+/* ========== Drag Handle (grip icon for reorder) ========== */
+.drag-handle {
+  flex-shrink: 0;
+  width: 18px;
+  text-align: center;
+  cursor: grab;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  line-height: 1;
+  user-select: none;
+  opacity: 0.5;
+  transition: opacity var(--transition);
+}
+
+.drag-handle:hover {
+  opacity: 1;
+}
+
+body.row-dragging {
+  cursor: grabbing !important;
+  user-select: none;
+}
+
+body.row-dragging * {
+  cursor: grabbing !important;
+}
+
+.field-item.dragging {
+  opacity: 0.4;
+}
+
+.field-item.drag-over-above {
+  border-top: 2px solid var(--color-primary);
+}
+
+.field-item.drag-over-below {
+  border-bottom: 2px solid var(--color-primary);
+}
