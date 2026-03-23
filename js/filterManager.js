@@ -1,12 +1,12 @@
 /**
  * FilterManager – Type-aware column filter dropdown + global search.
  * Supports text (checkbox), number (min/max), and date (from/to) filters.
- * Attaches to window.SuperTable.FilterManager
+ * Attaches to window.SenestiaTable.FilterManager
  */
 (function () {
   'use strict';
 
-  window.SuperTable = window.SuperTable || {};
+  window.SenestiaTable = window.SenestiaTable || {};
 
   /**
    * filterState: { [colIndex]:
@@ -253,8 +253,8 @@
     closeDropdown();
 
     // Trigger refresh pipeline
-    if (typeof window.SuperTable.refresh === 'function') {
-      window.SuperTable.refresh();
+    if (typeof window.SenestiaTable.refresh === 'function') {
+      window.SenestiaTable.refresh();
     }
   }
 
@@ -367,7 +367,7 @@
     closeDropdown();
   }
 
-  window.SuperTable.FilterManager = {
+  window.SenestiaTable.FilterManager = {
     init: init,
     buildUniqueValues: buildUniqueValues,
     openDropdown: openDropdown,

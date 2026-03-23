@@ -1,12 +1,12 @@
 /**
  * ExportManager – CSV and Excel export.
  * Exports all filtered+sorted rows (not just current page).
- * Attaches to window.SuperTable.ExportManager
+ * Attaches to window.SenestiaTable.ExportManager
  */
 (function () {
   'use strict';
 
-  window.SuperTable = window.SuperTable || {};
+  window.SenestiaTable = window.SenestiaTable || {};
 
   /**
    * Export filtered+sorted data as CSV.
@@ -15,7 +15,7 @@
    * @param {string} [filename]
    */
   function exportCSV(columns, rows, filename) {
-    filename = filename || 'supertable_export.csv';
+    filename = filename || 'senestia_table_export.csv';
 
     var lines = [];
 
@@ -44,7 +44,7 @@
    * @param {string} [filename]
    */
   function exportExcel(columns, rows, filename) {
-    filename = filename || 'supertable_export.xlsx';
+    filename = filename || 'senestia_table_export.xlsx';
 
     if (typeof XLSX === 'undefined') {
       alert('SheetJS library not loaded. Cannot export to Excel.');
@@ -103,7 +103,7 @@
     URL.revokeObjectURL(url);
   }
 
-  window.SuperTable.ExportManager = {
+  window.SenestiaTable.ExportManager = {
     exportCSV: exportCSV,
     exportExcel: exportExcel,
   };

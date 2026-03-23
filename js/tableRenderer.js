@@ -1,11 +1,11 @@
 /**
  * TableRenderer – Render header and body DOM for the super-table.
- * Attaches to window.SuperTable.TableRenderer
+ * Attaches to window.SenestiaTable.TableRenderer
  */
 (function () {
   'use strict';
 
-  window.SuperTable = window.SuperTable || {};
+  window.SenestiaTable = window.SenestiaTable || {};
 
   var theadEl = null;
   var tbodyEl = null;
@@ -123,7 +123,7 @@
     return dataType === 'float' || dataType === 'int' || dataType === 'real';
   }
 
-  window.SuperTable.TableRenderer = {
+  window.SenestiaTable.TableRenderer = {
     init: init,
     renderHeader: renderHeader,
     renderBody: renderBody,

@@ -5,7 +5,7 @@
 (function () {
   'use strict';
 
-  var ST = window.SuperTable;
+  var ST = window.SenestiaTable;
 
   // Cached pipeline data
   var filteredRows = [];

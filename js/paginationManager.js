@@ -1,11 +1,11 @@
 /**
  * PaginationManager – Pagination state and controls.
- * Attaches to window.SuperTable.PaginationManager
+ * Attaches to window.SenestiaTable.PaginationManager
  */
 (function () {
   'use strict';
 
-  window.SuperTable = window.SuperTable || {};
+  window.SenestiaTable = window.SenestiaTable || {};
 
   var currentPage = 1;
   var pageSize = 50;
@@ -23,8 +23,8 @@
     pageSizeSelect.addEventListener('change', function () {
       pageSize = parseInt(pageSizeSelect.value, 10);
       currentPage = 1;
-      if (typeof window.SuperTable.refresh === 'function') {
-        window.SuperTable.refresh();
+      if (typeof window.SenestiaTable.refresh === 'function') {
+        window.SenestiaTable.refresh();
       }
     });
   }
@@ -53,8 +53,8 @@
   function goToPage(p) {
     if (p < 1 || p > totalPages) return;
     currentPage = p;
-    if (typeof window.SuperTable.refresh === 'function') {
-      window.SuperTable.refresh();
+    if (typeof window.SenestiaTable.refresh === 'function') {
+      window.SenestiaTable.refresh();
     }
   }
 
@@ -130,7 +130,7 @@
   function getPageSize() { return pageSize; }
   function getCurrentPage() { return currentPage; }
 
-  window.SuperTable.PaginationManager = {
+  window.SenestiaTable.PaginationManager = {
     init: init,
     update: update,
     getCurrentPageRows: getCurrentPageRows,

@@ -1,11 +1,11 @@
 /**
  * DataManager – Fetch data from Tableau worksheet API
- * Attaches to window.SuperTable.DataManager
+ * Attaches to window.SenestiaTable.DataManager
  */
 (function () {
   'use strict';
 
-  window.SuperTable = window.SuperTable || {};
+  window.SenestiaTable = window.SenestiaTable || {};
 
   /** All columns from the worksheet (after un-pivot) */
   var allColumns = [];
@@ -343,7 +343,7 @@
     return cachedRows;
   }
 
-  window.SuperTable.DataManager = {
+  window.SenestiaTable.DataManager = {
     fetchData: fetchData,
     getAllColumns: getAllColumns,
     getColumns: getColumns,

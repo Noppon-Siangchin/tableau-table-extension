@@ -1,12 +1,12 @@
 /**
  * SortManager – Column sorting logic.
  * Click cycle: none → asc → desc → none
- * Attaches to window.SuperTable.SortManager
+ * Attaches to window.SenestiaTable.SortManager
  */
 (function () {
   'use strict';
 
-  window.SuperTable = window.SuperTable || {};
+  window.SenestiaTable = window.SenestiaTable || {};
 
   // Current sort state: { colIndex, direction } or null
   var sortState = null;
@@ -68,7 +68,7 @@
 
   function reset() { sortState = null; }
 
-  window.SuperTable.SortManager = {
+  window.SenestiaTable.SortManager = {
     toggle: toggle,
     apply: apply,
     getState: getState,

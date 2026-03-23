@@ -59,6 +59,6 @@ const handler = (req, res) => {
 const server = https.createServer(sslOptions, handler);
 
 server.listen(PORT, () => {
-  console.log(`SuperTable dev server (HTTPS) running at https://localhost:${PORT}`);
+  console.log(`Senestia-Table dev server (HTTPS) running at https://localhost:${PORT}`);
   console.log('Note: You may need to visit the URL in a browser first and accept the self-signed certificate.');
 });
