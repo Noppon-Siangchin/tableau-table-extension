@@ -57,6 +57,9 @@
         btnNext.disabled = false;
         onNext();
       }
+    }).catch(function (err) {
+      console.error('Dialog init error:', err);
+      listEl.innerHTML = '<li class="no-worksheets">Error initializing: ' + (err.message || err) + '</li>';
     });
   });
 
