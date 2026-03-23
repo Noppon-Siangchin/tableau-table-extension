@@ -108,8 +108,9 @@
   </div>
 </div>
 
-<!-- Tableau Extensions Library (official CDN – always matches server version) -->
+<!-- Tableau Extensions Library: try CDN first, fallback to local copy -->
 <script src="https://extensions.tableaucdn.com/extensions-api/lib/tableau.extensions.1.latest.min.js"></script>
+<script>if(typeof tableau==='undefined'){document.write('<script src="lib/tableau.extensions.1.latest.min.js"><\/script>');}</script>
 
 <!-- SheetJS for Excel export -->
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
