@@ -29,8 +29,9 @@
    * @param {function} onFilterClick
    * @param {object} filterState
    * @param {function} [onFilterClear] – callback(colIndex) to clear a single column filter
+   * @param {function} [onHeaderReorder] – callback(fromColIndex, toColIndex) for header drag reorder
    */
-  function renderHeader(columns, sortState, onSortClick, onFilterClick, filterState, onFilterClear) {
+  function renderHeader(columns, sortState, onSortClick, onFilterClick, filterState, onFilterClear, onHeaderReorder) {
     theadEl.innerHTML = '';
     lastThElements = [];
     var tr = document.createElement('tr');
@@ -39,7 +40,7 @@
     var pinnedSet = new Set(pinned);
     var pinnedLeftOffset = 0;
 
-    columns.forEach(function (col) {
+    columns.forEach(function (col, colIdx) {
       var th = document.createElement('th');
       var eType = col.effectiveType || (isNumericType(col.dataType) ? 'number' : 'text');
       if (eType === 'number') {
@@ -94,10 +95,17 @@
         th.appendChild(clearBtn);
       }
 
-      // Sort on header click
-      th.addEventListener('click', function () {
-        onSortClick(col.index);
-      });
+      // Sort click + header drag reorder combined via mousedown
+      if (onHeaderReorder) {
+        setupHeaderDrag(th, colIdx, onSortClick, onHeaderReorder);
+      } else {
+        // No reorder — simple sort click
+        (function (ci) {
+          th.addEventListener('click', function () {
+            onSortClick(ci);
+          });
+        })(col.index);
+      }
 
       tr.appendChild(th);
       lastThElements.push(th);
@@ -113,6 +121,118 @@
 
     // Recalculate pinned offsets after DOM insertion
     recalcPinnedOffsets(columns, pinnedSet);
+  }
+
+  /**
+   * Setup header drag-to-reorder on a single <th>.
+   * Creates a floating ghost that follows the cursor.
+   */
+  function setupHeaderDrag(th, colIdx, onSortClick, onHeaderReorder) {
+    var hdrSortBlocked = false;
+
+    th.addEventListener('mousedown', function (e) {
+      if (e.button !== 0) return;
+      if (e.target.closest('.col-filter-btn') || e.target.closest('.col-filter-clear') || e.target.closest('.col-resize-handle')) return;
+
+      var startX = e.clientX;
+      var startY = e.clientY;
+      var isDragging = false;
+      var ghost = null;
+      hdrSortBlocked = false;
+
+      function onMove(ev) {
+        var dx = ev.clientX - startX;
+        if (!isDragging && Math.abs(dx) < 5) return;
+
+        if (!isDragging) {
+          isDragging = true;
+          hdrSortBlocked = true;
+
+          // Dim source column
+          th.classList.add('col-dragging');
+          document.body.classList.add('col-header-dragging');
+
+          // Create floating ghost
+          ghost = document.createElement('div');
+          ghost.className = 'col-drag-ghost';
+          var labelSpan = th.querySelector('.col-label');
+          ghost.textContent = labelSpan ? labelSpan.textContent : th.textContent;
+          ghost.style.width = th.offsetWidth + 'px';
+          document.body.appendChild(ghost);
+        }
+
+        // Position ghost at cursor
+        ghost.style.left = (ev.clientX - ghost.offsetWidth / 2) + 'px';
+        ghost.style.top = (ev.clientY - ghost.offsetHeight / 2) + 'px';
+
+        // Clear all target indicators
+        lastThElements.forEach(function (t) {
+          t.classList.remove('drag-target-left', 'drag-target-right');
+        });
+
+        // Find target <th> under cursor
+        for (var i = 0; i < lastThElements.length; i++) {
+          if (i === colIdx) continue;
+          var rect = lastThElements[i].getBoundingClientRect();
+          if (ev.clientX >= rect.left && ev.clientX <= rect.right) {
+            var mid = rect.left + rect.width / 2;
+            if (ev.clientX < mid) {
+              lastThElements[i].classList.add('drag-target-left');
+            } else {
+              lastThElements[i].classList.add('drag-target-right');
+            }
+            break;
+          }
+        }
+      }
+
+      function onUp(ev) {
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+
+        // Clean up ghost
+        if (ghost && ghost.parentNode) {
+          ghost.parentNode.removeChild(ghost);
+        }
+
+        th.classList.remove('col-dragging');
+        document.body.classList.remove('col-header-dragging');
+        lastThElements.forEach(function (t) {
+          t.classList.remove('drag-target-left', 'drag-target-right');
+        });
+
+        if (isDragging) {
+          // Find target index
+          for (var i = 0; i < lastThElements.length; i++) {
+            if (i === colIdx) continue;
+            var rect = lastThElements[i].getBoundingClientRect();
+            if (ev.clientX >= rect.left && ev.clientX <= rect.right) {
+              var mid = rect.left + rect.width / 2;
+              var toIdx = ev.clientX < mid ? i : i + 1;
+              if (colIdx < toIdx) toIdx--;
+              if (toIdx !== colIdx) {
+                onHeaderReorder(colIdx, toIdx);
+              }
+              break;
+            }
+          }
+        }
+
+        isDragging = false;
+      }
+
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    });
+
+    // Sort on click — only if not dragging
+    th.addEventListener('click', function () {
+      if (hdrSortBlocked) {
+        hdrSortBlocked = false;
+        return;
+      }
+      onSortClick(colIdx);
+    });
   }
 
   function recalcPinnedOffsets(columns, pinnedSet) {

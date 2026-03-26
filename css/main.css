@@ -226,7 +226,7 @@ body {
   border-bottom: 1px solid var(--color-border);
   padding: 8px 12px;
   text-align: left;
-  font-weight: 600;
+  font-weight: 700;
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.03em;
@@ -864,6 +864,97 @@ body.col-resizing {
 
 body.col-resizing * {
   cursor: col-resize !important;
+}
+
+/* ========== Column Picker Drag Reorder ========== */
+.column-list label {
+  position: relative;
+}
+
+.column-list .drag-handle {
+  cursor: grab;
+  color: var(--color-text-tertiary);
+  font-size: 11px;
+  flex-shrink: 0;
+  line-height: 1;
+  user-select: none;
+  padding: 0 2px;
+}
+
+.column-list .drag-handle:hover {
+  color: var(--color-text-secondary);
+}
+
+.column-list label.dragging {
+  opacity: 0.4;
+}
+
+.column-list label.drag-over-above {
+  border-top: 2px solid var(--color-primary);
+}
+
+.column-list label.drag-over-below {
+  border-bottom: 2px solid var(--color-primary);
+}
+
+/* ========== Table Header Drag Reorder ========== */
+#super-table th.col-dragging {
+  opacity: 0.25;
+  background: var(--color-border-light);
+}
+
+/* Floating ghost element */
+.col-drag-ghost {
+  position: fixed;
+  z-index: 9999;
+  padding: 8px 16px;
+  background: var(--color-bg);
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 24px rgba(91, 106, 191, 0.25), 0 2px 8px rgba(0, 0, 0, 0.1);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--color-primary);
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0.95;
+  transform: scale(1.04);
+}
+
+/* Drop indicator lines */
+#super-table th.drag-target-left::before {
+  content: '';
+  position: absolute;
+  left: -1px;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--color-primary);
+  border-radius: 2px;
+  z-index: 5;
+}
+
+#super-table th.drag-target-right::after {
+  content: '';
+  position: absolute;
+  right: -1px;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--color-primary);
+  border-radius: 2px;
+  z-index: 5;
+}
+
+body.col-header-dragging {
+  cursor: grabbing !important;
+  user-select: none;
+}
+
+body.col-header-dragging * {
+  cursor: grabbing !important;
 }
 
 /* ========== Pinned Columns ========== */

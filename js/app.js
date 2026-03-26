@@ -14,6 +14,7 @@
   // Column picker state
   var columnDropdownEl, columnListEl;
   var pendingColumnSet = null;
+  var pendingColumnOrder = null; // ordered fieldName array for drag-to-reorder
 
   /** Refresh the full pipeline: filter → sort → group → paginate → render */
   function refresh() {
@@ -43,7 +44,8 @@
         onSortClick,
         onFilterClick,
         ST.FilterManager.getState(),
-        onFilterClear
+        onFilterClear,
+        onHeaderReorder
       );
 
       // Render grouped body
@@ -72,7 +74,8 @@
         onSortClick,
         onFilterClick,
         ST.FilterManager.getState(),
-        onFilterClear
+        onFilterClear,
+        onHeaderReorder
       );
 
       // 7. Render body
@@ -114,6 +117,46 @@
 
   function onFilterClear(colIndex) {
     ST.FilterManager.clearColumn(colIndex);
+    ST.PaginationManager.resetPage();
+    refresh();
+  }
+
+  function onHeaderReorder(fromIdx, toIdx) {
+    var columns = ST.DataManager.getColumns();
+    var fieldNames = columns.map(function (c) { return c.fieldName; });
+
+    // Splice reorder
+    var item = fieldNames.splice(fromIdx, 1)[0];
+    fieldNames.splice(toIdx, 0, item);
+
+    // Build full order including any hidden columns
+    var allCols = ST.DataManager.getAllColumns();
+    var visibleSet = new Set(fieldNames);
+    var fullOrder = fieldNames.slice();
+    allCols.forEach(function (c) {
+      if (!visibleSet.has(c.fieldName)) {
+        fullOrder.push(c.fieldName);
+      }
+    });
+
+    ST.DataManager.setColumnOrder(fullOrder);
+    tableau.extensions.settings.set('columnOrder', JSON.stringify(fullOrder));
+    tableau.extensions.settings.saveAsync();
+
+    // Also update selectedFields to reflect new order
+    var currentFields = ST.DataManager.getSelectedFields();
+    if (currentFields) {
+      ST.DataManager.setSelectedFields(fieldNames);
+      tableau.extensions.settings.set('selectedFields', JSON.stringify(fieldNames));
+      tableau.extensions.settings.saveAsync();
+    }
+
+    ST.SortManager.reset();
+    ST.FilterManager.reset();
+    ST.FilterManager.buildUniqueValues(
+      ST.DataManager.getRawRows(),
+      ST.DataManager.getColumns()
+    );
     ST.PaginationManager.resetPage();
     refresh();
   }
@@ -466,25 +509,57 @@
       pendingColumnSet = new Set(allCols.map(function (c) { return c.fieldName; }));
     }
 
-    renderColumnChecklist(allCols);
+    // Init pendingColumnOrder from current saved order or default
+    var savedOrder = ST.DataManager.getColumnOrder();
+    if (savedOrder && savedOrder.length > 0) {
+      // Start from saved order, append any new columns not in order
+      var orderSet = new Set(savedOrder);
+      pendingColumnOrder = savedOrder.slice();
+      allCols.forEach(function (c) {
+        if (!orderSet.has(c.fieldName)) {
+          pendingColumnOrder.push(c.fieldName);
+        }
+      });
+    } else {
+      pendingColumnOrder = allCols.map(function (c) { return c.fieldName; });
+    }
+
+    renderColumnChecklist();
     positionColumnDropdown();
     columnDropdownEl.style.display = 'flex';
   }
 
-  function renderColumnChecklist(allCols) {
+  function renderColumnChecklist() {
     columnListEl.innerHTML = '';
     var frag = document.createDocumentFragment();
 
-    allCols.forEach(function (col) {
+    // Build a map from fieldName → col for lookup
+    var allCols = ST.DataManager.getAllColumns();
+    var colMap = {};
+    allCols.forEach(function (c) { colMap[c.fieldName] = c; });
+
+    // Render in pendingColumnOrder
+    pendingColumnOrder.forEach(function (fieldName) {
+      var col = colMap[fieldName];
+      if (!col) return;
+
       var label = document.createElement('label');
+      label.setAttribute('data-field', fieldName);
+
+      // Drag handle
+      var handle = document.createElement('span');
+      handle.className = 'drag-handle';
+      handle.textContent = '\u2630'; // ☰
+      label.appendChild(handle);
+
       var cb = document.createElement('input');
       cb.type = 'checkbox';
-      cb.checked = pendingColumnSet.has(col.fieldName);
+      cb.checked = pendingColumnSet.has(fieldName);
       cb.addEventListener('change', function () {
         if (cb.checked) {
-          pendingColumnSet.add(col.fieldName);
+          pendingColumnSet.add(fieldName);
         } else {
-          pendingColumnSet.delete(col.fieldName);
+          pendingColumnSet.delete(fieldName);
         }
       });
       var span = document.createElement('span');
@@ -497,6 +572,99 @@
     });
 
     columnListEl.appendChild(frag);
+
+    // Attach drag events to handles
+    attachColumnListDrag();
+  }
+
+  function attachColumnListDrag() {
+    var handles = columnListEl.querySelectorAll('.drag-handle');
+    handles.forEach(function (handle) {
+      handle.addEventListener('mousedown', onColDragStart);
+    });
+  }
+
+  function onColDragStart(e) {
+    e.preventDefault();
+    e.stopPropagation();
+
+    var label = e.target.closest('label');
+    if (!label) return;
+
+    var startY = e.clientY;
+    var labels = Array.from(columnListEl.querySelectorAll('label'));
+    var dragIdx = labels.indexOf(label);
+    var isDragging = false;
+
+    label.classList.add('dragging');
+
+    function onMove(ev) {
+      var dy = ev.clientY - startY;
+      if (!isDragging && Math.abs(dy) < 4) return;
+      isDragging = true;
+
+      // Clear all indicators
+      labels.forEach(function (l) {
+        l.classList.remove('drag-over-above', 'drag-over-below');
+      });
+
+      // Find target label under cursor
+      for (var i = 0; i < labels.length; i++) {
+        if (i === dragIdx) continue;
+        var rect = labels[i].getBoundingClientRect();
+        if (ev.clientY >= rect.top && ev.clientY <= rect.bottom) {
+          var mid = rect.top + rect.height / 2;
+          if (ev.clientY < mid) {
+            labels[i].classList.add('drag-over-above');
+          } else {
+            labels[i].classList.add('drag-over-below');
+          }
+          break;
+        }
+      }
+    }
+
+    function onUp(ev) {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+
+      label.classList.remove('dragging');
+      labels.forEach(function (l) {
+        l.classList.remove('drag-over-above', 'drag-over-below');
+      });
+
+      if (!isDragging) return;
+
+      // Find target index
+      var targetIdx = -1;
+      var insertAfter = false;
+      for (var i = 0; i < labels.length; i++) {
+        var rect = labels[i].getBoundingClientRect();
+        if (ev.clientY >= rect.top && ev.clientY <= rect.bottom) {
+          targetIdx = i;
+          var mid = rect.top + rect.height / 2;
+          insertAfter = ev.clientY >= mid;
+          break;
+        }
+      }
+
+      if (targetIdx < 0 || targetIdx === dragIdx) return;
+
+      // Splice reorder pendingColumnOrder
+      var item = pendingColumnOrder.splice(dragIdx, 1)[0];
+      var insertIdx;
+      if (dragIdx < targetIdx) {
+        insertIdx = insertAfter ? targetIdx : targetIdx - 1;
+      } else {
+        insertIdx = insertAfter ? targetIdx + 1 : targetIdx;
+      }
+      pendingColumnOrder.splice(insertIdx, 0, item);
+
+      renderColumnChecklist();
+    }
+
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
   }
 
   function positionColumnDropdown() {
@@ -513,12 +681,12 @@
   function colSelectAll() {
     var allCols = ST.DataManager.getAllColumns();
     pendingColumnSet = new Set(allCols.map(function (c) { return c.fieldName; }));
-    renderColumnChecklist(allCols);
+    renderColumnChecklist();
   }
 
   function colClearAll() {
     pendingColumnSet = new Set();
-    renderColumnChecklist(ST.DataManager.getAllColumns());
+    renderColumnChecklist();
   }
 
   function colApply() {
@@ -527,21 +695,12 @@
       return;
     }
 
+    // Use pendingColumnOrder (filtered to checked) as new order
+    var selected = pendingColumnOrder.filter(function (fn) {
+      return pendingColumnSet.has(fn);
+    });
+
     var allCols = ST.DataManager.getAllColumns();
-    var savedOrder = ST.DataManager.getColumnOrder();
-    var orderedCols = allCols;
-    if (savedOrder && savedOrder.length > 0) {
-      var orderMap = {};
-      savedOrder.forEach(function (fn, i) { orderMap[fn] = i; });
-      orderedCols = allCols.slice().sort(function (a, b) {
-        var ia = orderMap[a.fieldName] !== undefined ? orderMap[a.fieldName] : 9999;
-        var ib = orderMap[b.fieldName] !== undefined ? orderMap[b.fieldName] : 9999;
-        return ia - ib;
-      });
-    }
-    var selected = orderedCols
-      .filter(function (c) { return pendingColumnSet.has(c.fieldName); })
-      .map(function (c) { return c.fieldName; });
 
     if (selected.length === allCols.length) {
       ST.DataManager.setSelectedFields(null);
@@ -550,6 +709,10 @@
       ST.DataManager.setSelectedFields(selected);
       tableau.extensions.settings.set('selectedFields', JSON.stringify(selected));
     }
+
+    // Save column order
+    ST.DataManager.setColumnOrder(pendingColumnOrder);
+    tableau.extensions.settings.set('columnOrder', JSON.stringify(pendingColumnOrder));
 
     tableau.extensions.settings.saveAsync();
     colClose();
@@ -567,6 +730,7 @@
   function colClose() {
     columnDropdownEl.style.display = 'none';
     pendingColumnSet = null;
+    pendingColumnOrder = null;
   }
 
   // ── Init ──
@@ -590,15 +754,6 @@
       ST.ExportManager.exportExcel(ST.DataManager.getColumns(), sortedRows);
     });
 
-    // Theme toggle
-    document.getElementById('btn-theme').addEventListener('click', function () {
-      var theme = ST.ThemeManager.toggle();
-      // Save to Tableau settings too
-      try {
-        tableau.extensions.settings.set('theme', theme);
-        tableau.extensions.settings.saveAsync();
-      } catch (e) { /* ignore if not initialized */ }
-    });
 
     // Expand/Collapse all buttons
     document.getElementById('btn-expand-all').addEventListener('click', function () {
