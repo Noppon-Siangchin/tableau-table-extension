@@ -53,13 +53,19 @@
     var dataType = col ? col.dataType : 'string';
 
     return rows.slice().sort(function (a, b) {
-      var va = a[ci] ? a[ci].value : null;
-      var vb = b[ci] ? b[ci].value : null;
+      var cellA = a[ci];
+      var cellB = b[ci];
+      var va = cellA ? cellA.value : null;
+      var vb = cellB ? cellB.value : null;
 
-      // Nulls to end
-      if (va == null && vb == null) return 0;
-      if (va == null) return 1;
-      if (vb == null) return -1;
+      // Treat blank / "Null" formatted values as null
+      var nullA = (va == null || va === '' || (cellA && cellA.formattedValue === 'Null'));
+      var nullB = (vb == null || vb === '' || (cellB && cellB.formattedValue === 'Null'));
+
+      // Nulls always to bottom regardless of sort direction
+      if (nullA && nullB) return 0;
+      if (nullA) return 1;
+      if (nullB) return -1;
 
       var cmp = 0;
       if (eType === 'number' || dataType === 'float' || dataType === 'int' || dataType === 'real') {

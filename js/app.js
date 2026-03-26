@@ -329,6 +329,9 @@
               if (payload.conditionalFormats) {
                 ST.FormatManager.setConditionalFormats(payload.conditionalFormats);
               }
+              if (payload.nullDisplay != null) {
+                ST.FormatManager.setNullDisplay(payload.nullDisplay);
+              }
             } else {
               worksheetName = result;
               var fieldsJson = tableau.extensions.settings.get('selectedFields') || '';
@@ -583,9 +586,6 @@
     // Toolbar events
     document.getElementById('global-search').addEventListener('input', debounce(onGlobalSearch, 250));
     document.getElementById('btn-configure').addEventListener('click', openConfigure);
-    document.getElementById('btn-export-csv').addEventListener('click', function () {
-      ST.ExportManager.exportCSV(ST.DataManager.getColumns(), sortedRows);
-    });
     document.getElementById('btn-export-excel').addEventListener('click', function () {
       ST.ExportManager.exportExcel(ST.DataManager.getColumns(), sortedRows);
     });
@@ -688,6 +688,10 @@
         var condFmtJson = tableau.extensions.settings.get('conditionalFormats') || '';
         if (condFmtJson) {
           try { ST.FormatManager.setConditionalFormats(JSON.parse(condFmtJson)); } catch (e) { /* ignore */ }
+        }
+        var savedNull = tableau.extensions.settings.get('nullDisplay');
+        if (savedNull != null) {
+          ST.FormatManager.setNullDisplay(savedNull);
         }
 
         loadWorksheetData(saved);

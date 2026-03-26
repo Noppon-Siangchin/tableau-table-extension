@@ -165,14 +165,8 @@
         var cell = rows[r][c];
         var col = columns[c];
 
-        // Format value
-        var text;
-        if (FM) {
-          var formatted = FM.formatValue(col.fieldName, cell);
-          text = formatted !== null ? formatted : (cell ? cell.formattedValue : '');
-        } else {
-          text = cell ? cell.formattedValue : '';
-        }
+        // Format value (with null display)
+        var text = FM ? FM.getDisplayText(col.fieldName, cell) : (cell ? cell.formattedValue : '');
 
         // Conditional formatting
         var cellStyle = FM ? FM.getCellStyle(col.fieldName, cell) : null;
@@ -304,13 +298,8 @@
             var cell = group.rows[r][c];
             var col = columns[c];
 
-            var text;
-            if (FM) {
-              var formatted = FM.formatValue(col.fieldName, cell);
-              text = formatted !== null ? formatted : (cell ? cell.formattedValue : '');
-            } else {
-              text = cell ? cell.formattedValue : '';
-            }
+            // Format value (with null display)
+            var text = FM ? FM.getDisplayText(col.fieldName, cell) : (cell ? cell.formattedValue : '');
 
             var cellStyle = FM ? FM.getCellStyle(col.fieldName, cell) : null;
             if (cellStyle) {

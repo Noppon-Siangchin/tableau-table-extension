@@ -1,7 +1,7 @@
 /**
- * ExportManager – CSV and Excel export.
+ * ExportManager – Excel export.
  * Exports all filtered+sorted rows (not just current page).
- * Uses FormatManager for number formatting when available.
+ * Uses FormatManager.getDisplayText for cell values (incl. null display).
  * Attaches to window.SenestiaTable.ExportManager
  */
 (function () {
@@ -10,70 +10,12 @@
   window.SenestiaTable = window.SenestiaTable || {};
 
   /**
-   * Get display text for a cell (uses FormatManager if available).
+   * Get display text for a cell (uses FormatManager with null display).
    */
   function getCellText(col, cell) {
     var FM = window.SenestiaTable.FormatManager;
-    if (FM) {
-      var formatted = FM.formatValue(col.fieldName, cell);
-      if (formatted !== null) return formatted;
-    }
+    if (FM) return FM.getDisplayText(col.fieldName, cell);
     return cell ? cell.formattedValue : '';
-  }
-
-  /**
-   * Export filtered+sorted data as CSV.
-   * @param {{ fieldName: string }[]} columns
-   * @param {{ value: any, formattedValue: string }[][]} rows
-   * @param {string} [filename]
-   */
-  function exportCSV(columns, rows, filename) {
-    filename = filename || 'senestia_table_export.csv';
-
-    var lines = [];
-
-    // Header
-    lines.push(columns.map(function (c) { return csvEscape(c.displayName || c.fieldName); }).join(','));
-
-    // Check if grouped
-    var GM = window.SenestiaTable.GroupManager;
-    if (GM && GM.isGrouped()) {
-      var groupData = GM.buildGroups(rows, columns);
-      if (groupData && groupData.groups) {
-        groupData.groups.forEach(function (group) {
-          // Group header line
-          var aggParts = [];
-          Object.keys(group.aggregates).forEach(function (ci) {
-            var col = columns[parseInt(ci, 10)];
-            if (col) aggParts.push((col.displayName || col.fieldName) + ': ' + GM.formatAggregate(group.aggregates[ci]));
-          });
-          var groupLine = columns.map(function (col, i) {
-            if (i === 0) return csvEscape(group.label + ' (' + group.rows.length + ')' + (aggParts.length ? ' | ' + aggParts.join(' | ') : ''));
-            return '';
-          });
-          lines.push(groupLine.join(','));
-
-          // Data rows
-          group.rows.forEach(function (row) {
-            var line = columns.map(function (col, i) {
-              return csvEscape(getCellText(col, row[i]));
-            });
-            lines.push(line.join(','));
-          });
-        });
-      }
-    } else {
-      rows.forEach(function (row) {
-        var line = columns.map(function (col, i) {
-          return csvEscape(getCellText(col, row[i]));
-        });
-        lines.push(line.join(','));
-      });
-    }
-
-    var bom = '\uFEFF';
-    var csv = bom + lines.join('\r\n');
-    downloadBlob(csv, filename, 'text/csv;charset=utf-8;');
   }
 
   /**
@@ -141,14 +83,6 @@
 
   // ── Helpers ──
 
-  function csvEscape(val) {
-    var str = String(val);
-    if (str.indexOf(',') >= 0 || str.indexOf('"') >= 0 || str.indexOf('\n') >= 0) {
-      return '"' + str.replace(/"/g, '""') + '"';
-    }
-    return str;
-  }
-
   function downloadBlob(content, filename, mimeType) {
     var blob = new Blob([content], { type: mimeType });
     var url = URL.createObjectURL(blob);
@@ -162,7 +96,6 @@
   }
 
   window.SenestiaTable.ExportManager = {
-    exportCSV: exportCSV,
     exportExcel: exportExcel,
   };
 })();

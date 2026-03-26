@@ -13,6 +13,7 @@
    */
   var numberFormats = {};
   var conditionalFormats = {};
+  var nullDisplay = 'N/A';
 
   // Precomputed min/max per column for conditional formatting
   var columnStats = {}; // { fieldName: { min, max, range } }
@@ -22,6 +23,27 @@
 
   function getConditionalFormats() { return conditionalFormats; }
   function setConditionalFormats(obj) { conditionalFormats = obj || {}; }
+
+  function getNullDisplay() { return nullDisplay; }
+  function setNullDisplay(val) { nullDisplay = val != null ? val : 'N/A'; }
+
+  /**
+   * Return the display text for a cell, applying null display when empty.
+   * @param {string} fieldName
+   * @param {{ value: any, formattedValue: string }|null} cell
+   * @returns {string}
+   */
+  function getDisplayText(fieldName, cell) {
+    // Null / blank cell → null display text
+    if (!cell || cell.value == null || cell.value === '' || cell.formattedValue === 'Null') {
+      return nullDisplay;
+    }
+    // Try number format
+    var formatted = formatValue(fieldName, cell);
+    if (formatted !== null) return formatted;
+    // Fallback to formattedValue
+    return cell.formattedValue || nullDisplay;
+  }
 
   /**
    * Precompute column statistics for conditional formatting.
@@ -195,6 +217,9 @@
     setNumberFormats: setNumberFormats,
     getConditionalFormats: getConditionalFormats,
     setConditionalFormats: setConditionalFormats,
+    getNullDisplay: getNullDisplay,
+    setNullDisplay: setNullDisplay,
+    getDisplayText: getDisplayText,
     precompute: precompute,
     formatValue: formatValue,
     getCellStyle: getCellStyle,

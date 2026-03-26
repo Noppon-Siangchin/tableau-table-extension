@@ -12,6 +12,7 @@
   var checkedFields = new Set();
   var fieldRenames = {};     // { fieldName: customName }
   var fieldTypes = {};       // { fieldName: 'text'|'number'|'date' }
+  var nullDisplay = 'N/A';  // text to show for null/blank cells
 
   // Format configs
   var numberFormats = {};    // { fieldName: { decimals, thousands, prefix, suffix, compact } }
@@ -248,7 +249,16 @@
         if (condFmtJson) {
           try { conditionalFormats = JSON.parse(condFmtJson); } catch (e) { /* ignore */ }
         }
+
+        // Restore null display
+        var savedNull = tableau.extensions.settings.get('nullDisplay');
+        if (savedNull != null) {
+          nullDisplay = savedNull;
+        }
       }
+
+      // Set null display input
+      document.getElementById('null-display').value = nullDisplay;
 
       renderFieldChecklist();
     } catch (err) {
@@ -750,6 +760,10 @@
     tableau.extensions.settings.set('numberFormats', JSON.stringify(numberFormats));
     tableau.extensions.settings.set('conditionalFormats', JSON.stringify(conditionalFormats));
 
+    // Save null display
+    nullDisplay = document.getElementById('null-display').value;
+    tableau.extensions.settings.set('nullDisplay', nullDisplay);
+
     tableau.extensions.settings.saveAsync().then(function () {
       var payload = JSON.stringify({
         worksheetName: selectedWorksheet,
@@ -759,6 +773,7 @@
         columnOrder: columnOrder,
         numberFormats: numberFormats,
         conditionalFormats: conditionalFormats,
+        nullDisplay: nullDisplay,
       });
       tableau.extensions.ui.closeDialog(payload);
     });

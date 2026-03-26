@@ -7,7 +7,7 @@
     <author name="Senestia Dev" email="dev@example.com" organization="Senestia" website="https://noppon-siangchin.github.io/tableau-table-extension"/>
     <min-api-version>1.10</min-api-version>
     <source-location>
-      <url>https://noppon-siangchin.github.io/tableau-table-extension/index.html</url>
+      <url>https://localhost:8765/index.html</url>
     </source-location>
     <icon/>
     <permissions>
