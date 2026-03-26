@@ -95,10 +95,36 @@
         <label>Type</label>
         <select id="cond-type">
           <option value="">None</option>
-          <option value="colorScale">Color Scale</option>
+          <option value="threshold">Threshold Color</option>
+          <option value="colorScale">Color Scale (Gradient)</option>
           <option value="dataBar">Data Bar</option>
         </select>
       </div>
+      <!-- Threshold options -->
+      <div id="cond-threshold-options" style="display:none;">
+        <div class="format-row">
+          <label>Threshold</label>
+          <input type="number" id="cond-threshold-value" step="any" placeholder="e.g. 0"/>
+        </div>
+        <div class="format-row">
+          <label>Below color</label>
+          <input type="color" id="cond-threshold-below" value="#e5534b"/>
+          <span class="color-hint" style="font-size:11px;color:var(--color-text-tertiary);">Red</span>
+        </div>
+        <div class="format-row">
+          <label>Above color</label>
+          <input type="color" id="cond-threshold-above" value="#57ab5a"/>
+          <span class="color-hint" style="font-size:11px;color:var(--color-text-tertiary);">Green</span>
+        </div>
+        <div class="format-row">
+          <label>Apply to</label>
+          <select id="cond-threshold-target">
+            <option value="text">Text color</option>
+            <option value="background">Background</option>
+          </select>
+        </div>
+      </div>
+      <!-- Color Scale (gradient) options -->
       <div id="cond-color-options" style="display:none;">
         <div class="format-row">
           <label>Min color</label>
@@ -116,6 +142,7 @@
           </select>
         </div>
       </div>
+      <!-- Data Bar options -->
       <div id="cond-bar-options" style="display:none;">
         <div class="format-row">
           <label>Bar color</label>

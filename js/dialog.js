@@ -28,8 +28,10 @@
   var formatColumnSelect;
   var fmtDecimals, fmtThousands, fmtPrefix, fmtSuffix, fmtCompact;
   var condType, condColorMin, condColorMax, condColorTarget, condBarColor;
-  var condColorOptions, condBarOptions;
+  var condThresholdValue, condThresholdBelow, condThresholdAbove, condThresholdTarget;
+  var condThresholdOptions, condColorOptions, condBarOptions;
   var numberFormatSection, condFormatSection;
+  var lastFormatColumnName = null; // track which column the form currently shows
 
   document.addEventListener('DOMContentLoaded', function () {
     // Step 1 elements
@@ -64,6 +66,11 @@
     condColorMax = document.getElementById('cond-color-max');
     condColorTarget = document.getElementById('cond-color-target');
     condBarColor = document.getElementById('cond-bar-color');
+    condThresholdValue = document.getElementById('cond-threshold-value');
+    condThresholdBelow = document.getElementById('cond-threshold-below');
+    condThresholdAbove = document.getElementById('cond-threshold-above');
+    condThresholdTarget = document.getElementById('cond-threshold-target');
+    condThresholdOptions = document.getElementById('cond-threshold-options');
     condColorOptions = document.getElementById('cond-color-options');
     condBarOptions = document.getElementById('cond-bar-options');
     numberFormatSection = document.getElementById('number-format-section');
@@ -91,6 +98,7 @@
     // Conditional type change
     condType.addEventListener('change', function () {
       var t = condType.value;
+      condThresholdOptions.style.display = t === 'threshold' ? '' : 'none';
       condColorOptions.style.display = t === 'colorScale' ? '' : 'none';
       condBarOptions.style.display = t === 'dataBar' ? '' : 'none';
     });
@@ -298,16 +306,20 @@
       formatColumnSelect.appendChild(opt);
     });
 
-    // Load first column's format
+    // Reset tracking and load first column's format
+    lastFormatColumnName = null;
     onFormatColumnChange();
   }
 
   function onFormatColumnChange() {
-    // Save previous column's format
+    // Save PREVIOUS column's format (using tracked name, not the new select value)
     saveCurrentFormatColumn();
 
     var fn = formatColumnSelect.value;
     if (!fn) return;
+
+    // Track this as the current column
+    lastFormatColumnName = fn;
 
     // Load number format
     var nf = numberFormats[fn] || {};
@@ -320,20 +332,30 @@
     // Load conditional format
     var cf = conditionalFormats[fn] || {};
     condType.value = cf.type || '';
+
+    // Threshold fields
+    condThresholdValue.value = cf.threshold != null ? cf.threshold : '';
+    condThresholdBelow.value = cf.colorBelow || '#e5534b';
+    condThresholdAbove.value = cf.colorAbove || '#57ab5a';
+    condThresholdTarget.value = cf.target || 'text';
+
+    // Color scale fields
     condColorMin.value = cf.colorMin || '#ffffff';
     condColorMax.value = cf.colorMax || '#5b6abf';
     condColorTarget.value = cf.target || 'background';
+
+    // Data bar fields
     condBarColor.value = cf.barColor || '#5b6abf';
 
     // Show/hide conditional options
+    condThresholdOptions.style.display = cf.type === 'threshold' ? '' : 'none';
     condColorOptions.style.display = cf.type === 'colorScale' ? '' : 'none';
     condBarOptions.style.display = cf.type === 'dataBar' ? '' : 'none';
   }
 
-  var lastFormatColumn = null;
-
   function saveCurrentFormatColumn() {
-    var fn = formatColumnSelect.value;
+    // Save the column that was being EDITED (lastFormatColumnName), not the newly selected one
+    var fn = lastFormatColumnName;
     if (!fn) return;
 
     // Number format
@@ -357,7 +379,16 @@
 
     // Conditional format
     var ct = condType.value;
-    if (ct === 'colorScale') {
+    if (ct === 'threshold') {
+      var threshVal = condThresholdValue.value !== '' ? parseFloat(condThresholdValue.value) : 0;
+      conditionalFormats[fn] = {
+        type: 'threshold',
+        threshold: threshVal,
+        colorBelow: condThresholdBelow.value,
+        colorAbove: condThresholdAbove.value,
+        target: condThresholdTarget.value,
+      };
+    } else if (ct === 'colorScale') {
       conditionalFormats[fn] = {
         type: 'colorScale',
         colorMin: condColorMin.value,

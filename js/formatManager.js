@@ -119,24 +119,35 @@
     var cf = conditionalFormats[fieldName];
     if (!cf || !cf.type) return null;
 
-    var stats = columnStats[fieldName];
-    if (!stats) return null;
-
     if (!cell || cell.value == null) return null;
     var v = parseFloat(cell.value);
     if (isNaN(v)) return null;
+
+    // Threshold: compare against a user-defined value
+    if (cf.type === 'threshold') {
+      var threshold = cf.threshold != null ? cf.threshold : 0;
+      var color = v < threshold ? (cf.colorBelow || '#e5534b') : (cf.colorAbove || '#57ab5a');
+      if (cf.target === 'text') {
+        return { style: 'color:' + color + ';font-weight:500' };
+      }
+      var textColor = isLightColor(color) ? '#1e1f24' : '#ffffff';
+      return { style: 'background-color:' + color + ';color:' + textColor };
+    }
+
+    // Color scale and data bar need stats
+    var stats = columnStats[fieldName];
+    if (!stats) return null;
 
     var pct = (v - stats.min) / stats.range;
     pct = Math.max(0, Math.min(1, pct));
 
     if (cf.type === 'colorScale') {
-      var color = interpolateColor(cf.colorMin || '#ffffff', cf.colorMax || '#5b6abf', pct);
+      var gradColor = interpolateColor(cf.colorMin || '#ffffff', cf.colorMax || '#5b6abf', pct);
       if (cf.target === 'text') {
-        return { style: 'color:' + color };
+        return { style: 'color:' + gradColor };
       }
-      // Determine text color for readability
-      var textColor = isLightColor(color) ? '#1e1f24' : '#ffffff';
-      return { style: 'background-color:' + color + ';color:' + textColor };
+      var txtColor = isLightColor(gradColor) ? '#1e1f24' : '#ffffff';
+      return { style: 'background-color:' + gradColor + ';color:' + txtColor };
     }
 
     if (cf.type === 'dataBar') {
