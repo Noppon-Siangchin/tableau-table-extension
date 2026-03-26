@@ -20,6 +20,10 @@
   var columnTypes = {};
   /** Full column order (all field names in user-specified order) */
   var columnOrder = null;
+  /** Pinned column field names */
+  var pinnedColumns = [];
+  /** Column widths: { fieldName: widthPx } */
+  var columnWidths = {};
 
   /** Cached visible columns/rows (rebuilt only when selection changes) */
   var cachedColumns = null;
@@ -324,6 +328,26 @@
     return columnOrder;
   }
 
+  /** Set pinned columns */
+  function setPinnedColumns(arr) {
+    pinnedColumns = arr || [];
+  }
+
+  /** Get pinned columns */
+  function getPinnedColumns() {
+    return pinnedColumns;
+  }
+
+  /** Set column widths */
+  function setColumnWidths(obj) {
+    columnWidths = obj || {};
+  }
+
+  /** Get column widths */
+  function getColumnWidths() {
+    return columnWidths;
+  }
+
   /** Get all columns (for column picker UI), enriched with displayName/effectiveType */
   function getAllColumns() {
     return allColumns.map(function (col) {
@@ -356,6 +380,10 @@
     getColumnTypes: getColumnTypes,
     setColumnOrder: setColumnOrder,
     getColumnOrder: getColumnOrder,
+    setPinnedColumns: setPinnedColumns,
+    getPinnedColumns: getPinnedColumns,
+    setColumnWidths: setColumnWidths,
+    getColumnWidths: getColumnWidths,
     mapDataType: mapDataType,
   };
 })();

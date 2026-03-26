@@ -1,2 +1,7 @@
 node_modules/
 .certs/
+*.twbx
+*.twbx.backup
+*.twbr
+.DS_Store
+.~*

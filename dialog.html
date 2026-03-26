@@ -40,6 +40,93 @@
     <div class="dialog-footer">
       <button id="btn-back">&larr; Back</button>
       <button id="btn-cancel2">Cancel</button>
+      <button id="btn-next2" class="btn-primary">Next &rarr;</button>
+    </div>
+  </div>
+
+  <!-- Step 3: Number format & conditional format -->
+  <div id="step-format" style="display:none;">
+    <h2>Configure Senestia-Table</h2>
+    <p class="subtitle">Step 3: Number formatting &amp; conditional formatting.</p>
+
+    <div class="format-section">
+      <div class="format-column-selector">
+        <label style="font-size:12px;color:var(--color-text-secondary);min-width:60px;">Column:</label>
+        <select id="format-column-select"></select>
+      </div>
+    </div>
+
+    <!-- Number Format -->
+    <div class="format-section" id="number-format-section">
+      <h3>Number Format</h3>
+      <div class="format-row">
+        <label>Decimals</label>
+        <input type="number" id="fmt-decimals" min="0" max="6" value="0"/>
+      </div>
+      <div class="format-row">
+        <label>Thousands sep.</label>
+        <select id="fmt-thousands">
+          <option value="">None</option>
+          <option value=",">Comma (1,000)</option>
+          <option value=".">Period (1.000)</option>
+        </select>
+      </div>
+      <div class="format-row">
+        <label>Prefix</label>
+        <input type="text" id="fmt-prefix" placeholder="e.g. $"/>
+      </div>
+      <div class="format-row">
+        <label>Suffix</label>
+        <input type="text" id="fmt-suffix" placeholder="e.g. %"/>
+      </div>
+      <div class="format-row">
+        <label>Compact</label>
+        <select id="fmt-compact">
+          <option value="">Off</option>
+          <option value="auto">Auto (K/M/B)</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Conditional Format -->
+    <div class="format-section" id="cond-format-section">
+      <h3>Conditional Format</h3>
+      <div class="format-row">
+        <label>Type</label>
+        <select id="cond-type">
+          <option value="">None</option>
+          <option value="colorScale">Color Scale</option>
+          <option value="dataBar">Data Bar</option>
+        </select>
+      </div>
+      <div id="cond-color-options" style="display:none;">
+        <div class="format-row">
+          <label>Min color</label>
+          <input type="color" id="cond-color-min" value="#ffffff"/>
+        </div>
+        <div class="format-row">
+          <label>Max color</label>
+          <input type="color" id="cond-color-max" value="#5b6abf"/>
+        </div>
+        <div class="format-row">
+          <label>Apply to</label>
+          <select id="cond-color-target">
+            <option value="background">Background</option>
+            <option value="text">Text color</option>
+          </select>
+        </div>
+      </div>
+      <div id="cond-bar-options" style="display:none;">
+        <div class="format-row">
+          <label>Bar color</label>
+          <input type="color" id="cond-bar-color" value="#5b6abf"/>
+        </div>
+      </div>
+    </div>
+
+    <div class="dialog-footer">
+      <button id="btn-back2">&larr; Back</button>
+      <button id="btn-cancel3">Cancel</button>
       <button id="btn-ok" class="btn-primary">OK</button>
     </div>
   </div>

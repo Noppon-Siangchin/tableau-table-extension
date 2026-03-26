@@ -1,16 +1,39 @@
 /* ========== Dialog Styles ========== */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
+
 :root {
-  --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   --color-bg: #ffffff;
-  --color-surface: #f8f9fa;
-  --color-border: #dee2e6;
-  --color-text: #212529;
-  --color-text-secondary: #6c757d;
-  --color-primary: #0d6efd;
-  --color-primary-hover: #0b5ed7;
-  --color-primary-light: #e7f1ff;
-  --radius: 4px;
+  --color-surface: #f7f8fb;
+  --color-border: #e2e5eb;
+  --color-border-light: #eceef2;
+  --color-text: #1e1f24;
+  --color-text-secondary: #6b7085;
+  --color-text-tertiary: #9498ad;
+  --color-primary: #5b6abf;
+  --color-primary-hover: #4a57a8;
+  --color-primary-light: #eef0fb;
+  --color-primary-subtle: #f5f6fd;
+  --color-danger: #e5534b;
+  --radius: 8px;
+  --radius-lg: 12px;
   --transition: 150ms ease;
+}
+
+/* ========== Dark Theme ========== */
+[data-theme="dark"] {
+  --color-bg: #1a1b23;
+  --color-surface: #22232e;
+  --color-border: #32333f;
+  --color-border-light: #2a2b37;
+  --color-text: #e1e2e8;
+  --color-text-secondary: #8b8da3;
+  --color-text-tertiary: #5e607a;
+  --color-primary: #7b8adf;
+  --color-primary-hover: #6a79ce;
+  --color-primary-light: rgba(123, 138, 223, 0.15);
+  --color-primary-subtle: rgba(123, 138, 223, 0.08);
+  --color-danger: #f47067;
 }
 
 *, *::before, *::after {
@@ -28,6 +51,8 @@ body {
   display: flex;
   flex-direction: column;
   min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 h2 {
@@ -40,6 +65,27 @@ h2 {
   font-size: 13px;
   color: var(--color-text-secondary);
   margin-bottom: 20px;
+}
+
+/* Step indicator */
+.step-indicator {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 20px;
+}
+
+.step-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-border);
+  transition: background var(--transition);
+}
+
+.step-dot.active {
+  background: var(--color-primary);
+  width: 24px;
+  border-radius: 4px;
 }
 
 /* Worksheet list */
@@ -55,7 +101,7 @@ h2 {
 .worksheet-list li {
   padding: 10px 14px;
   cursor: pointer;
-  border-bottom: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--color-border-light);
   transition: background var(--transition);
   font-size: 13px;
 }
@@ -65,7 +111,7 @@ h2 {
 }
 
 .worksheet-list li:hover {
-  background: var(--color-primary-light);
+  background: var(--color-primary-subtle);
 }
 
 .worksheet-list li.selected {
@@ -90,6 +136,7 @@ h2 {
 .dialog-footer button {
   padding: 8px 20px;
   font-size: 13px;
+  font-family: var(--font-family);
   border: 1px solid var(--color-border);
   border-radius: var(--radius);
   background: var(--color-bg);
@@ -129,6 +176,7 @@ h2 {
   color: var(--color-primary);
   cursor: pointer;
   font-size: 12px;
+  font-family: var(--font-family);
   padding: 2px 0;
 }
 
@@ -155,12 +203,13 @@ h2 {
 }
 
 .field-list .field-item:hover {
-  background: var(--color-primary-light);
+  background: var(--color-primary-subtle);
 }
 
 .field-list .field-item input[type="checkbox"] {
   flex-shrink: 0;
   cursor: pointer;
+  accent-color: var(--color-primary);
 }
 
 .field-list .field-item .field-name {
@@ -175,25 +224,28 @@ h2 {
 .field-list .field-item .field-rename {
   flex: 1;
   min-width: 0;
-  padding: 3px 6px;
+  padding: 4px 8px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius);
   font-size: 12px;
+  font-family: var(--font-family);
   outline: none;
-  transition: border-color var(--transition);
+  transition: border-color var(--transition), box-shadow var(--transition);
 }
 
 .field-list .field-item .field-rename:focus {
   border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px var(--color-primary-light);
 }
 
 .field-list .field-item .field-type-select {
   width: 90px;
   min-width: 90px;
-  padding: 3px 4px;
+  padding: 4px 4px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius);
   font-size: 12px;
+  font-family: var(--font-family);
   background: var(--color-bg);
   cursor: pointer;
 }
@@ -226,7 +278,7 @@ h2 {
 
 .field-name-resize:hover::after,
 body.col-resizing .field-name-resize::after {
-  background: var(--color-border);
+  background: var(--color-primary);
 }
 
 body.col-resizing {
@@ -244,7 +296,7 @@ body.col-resizing * {
   width: 18px;
   text-align: center;
   cursor: grab;
-  color: var(--color-text-secondary);
+  color: var(--color-text-tertiary);
   font-size: 12px;
   line-height: 1;
   user-select: none;
@@ -275,4 +327,87 @@ body.row-dragging * {
 
 .field-item.drag-over-below {
   border-bottom: 2px solid var(--color-primary);
+}
+
+/* ========== Step 3: Format Configuration ========== */
+.format-section {
+  margin-bottom: 16px;
+}
+
+.format-section h3 {
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 8px;
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.format-column-selector {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+  align-items: center;
+}
+
+.format-column-selector select {
+  flex: 1;
+  padding: 6px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  font-size: 12px;
+  font-family: var(--font-family);
+  background: var(--color-bg);
+}
+
+.format-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.format-row label {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  min-width: 100px;
+}
+
+.format-row input,
+.format-row select {
+  flex: 1;
+  padding: 4px 8px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  font-size: 12px;
+  font-family: var(--font-family);
+  outline: none;
+}
+
+.format-row input:focus {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px var(--color-primary-light);
+}
+
+.format-row input[type="color"] {
+  width: 32px;
+  height: 28px;
+  padding: 2px;
+  cursor: pointer;
+  border-radius: var(--radius);
+}
+
+.format-row input[type="number"] {
+  width: 80px;
+  flex: none;
+}
+
+.format-preview {
+  padding: 8px 12px;
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius);
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  background: var(--color-surface);
+  margin-top: 8px;
 }

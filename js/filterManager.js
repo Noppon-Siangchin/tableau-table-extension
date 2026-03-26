@@ -1,6 +1,7 @@
 /**
  * FilterManager – Type-aware column filter dropdown + global search.
- * Supports text (checkbox), number (min/max), and date (from/to) filters.
+ * Supports text (checkbox + conditions), number (min/max + conditions),
+ * and date (from/to + conditions) filters.
  * Attaches to window.SenestiaTable.FilterManager
  */
 (function () {
@@ -10,9 +11,12 @@
 
   /**
    * filterState: { [colIndex]:
-   *   { type:'text', selected: Set<formattedValue> }
-   * | { type:'number', min: number|null, max: number|null }
-   * | { type:'date', from: string|null, to: string|null }
+   *   { type:'text', mode:'list', selected: Set<formattedValue> }
+   * | { type:'text', mode:'condition', op: string, value: string }
+   * | { type:'number', mode:'range', min: number|null, max: number|null }
+   * | { type:'number', mode:'condition', op: string, value: number, value2?: number }
+   * | { type:'date', mode:'range', from: string|null, to: string|null }
+   * | { type:'date', mode:'condition', op: string, value: string, value2?: string }
    * }
    */
   var filterState = {};
@@ -27,11 +31,40 @@
   // Current dropdown context
   var openColIndex = null;
   var pendingSet = null; // text filter working copy
+  var currentMode = 'list'; // 'list' or 'condition'
 
   // DOM references
   var dropdownEl, filterSearchEl, filterListEl;
-  var textSectionEl, numberSectionEl, dateSectionEl;
+  var textSectionEl, numberSectionEl, dateSectionEl, conditionSectionEl;
   var numMinEl, numMaxEl, dateFromEl, dateToEl;
+  var condOpEl, condValEl, condVal2El, condRow2El;
+  var modeBarEl, modeListBtn, modeCondBtn;
+
+  // Condition operators by type
+  var textConditions = [
+    { value: 'contains', label: 'Contains' },
+    { value: 'equals', label: 'Equals' },
+    { value: 'startsWith', label: 'Starts with' },
+    { value: 'endsWith', label: 'Ends with' },
+    { value: 'notContains', label: 'Not contains' },
+  ];
+
+  var numberConditions = [
+    { value: 'eq', label: 'Equals' },
+    { value: 'neq', label: 'Not equals' },
+    { value: 'gt', label: 'Greater than' },
+    { value: 'lt', label: 'Less than' },
+    { value: 'gte', label: 'Greater or equal' },
+    { value: 'lte', label: 'Less or equal' },
+    { value: 'between', label: 'Between' },
+  ];
+
+  var dateConditions = [
+    { value: 'eq', label: 'Equals' },
+    { value: 'before', label: 'Before' },
+    { value: 'after', label: 'After' },
+    { value: 'between', label: 'Between' },
+  ];
 
   function init() {
     dropdownEl = document.getElementById('filter-dropdown');
@@ -41,11 +74,21 @@
     textSectionEl = document.getElementById('filter-text-section');
     numberSectionEl = document.getElementById('filter-number-section');
     dateSectionEl = document.getElementById('filter-date-section');
+    conditionSectionEl = document.getElementById('filter-condition-section');
 
     numMinEl = document.getElementById('filter-num-min');
     numMaxEl = document.getElementById('filter-num-max');
     dateFromEl = document.getElementById('filter-date-from');
     dateToEl = document.getElementById('filter-date-to');
+
+    condOpEl = document.getElementById('filter-condition-op');
+    condValEl = document.getElementById('filter-condition-val');
+    condVal2El = document.getElementById('filter-condition-val2');
+    condRow2El = document.getElementById('filter-condition-row2');
+
+    modeBarEl = document.getElementById('filter-mode-bar');
+    modeListBtn = document.getElementById('filter-mode-list');
+    modeCondBtn = document.getElementById('filter-mode-condition');
 
     document.getElementById('filter-select-all').addEventListener('click', selectAll);
     document.getElementById('filter-clear-all').addEventListener('click', clearAll);
@@ -53,6 +96,26 @@
     document.getElementById('filter-cancel').addEventListener('click', closeDropdown);
 
     filterSearchEl.addEventListener('input', onDropdownSearch);
+
+    // Mode bar buttons
+    if (modeListBtn) {
+      modeListBtn.addEventListener('click', function () { switchMode('list'); });
+    }
+    if (modeCondBtn) {
+      modeCondBtn.addEventListener('click', function () { switchMode('condition'); });
+    }
+
+    // Condition operator change → show/hide second value
+    if (condOpEl) {
+      condOpEl.addEventListener('change', function () {
+        var op = condOpEl.value;
+        if (op === 'between') {
+          condRow2El.style.display = '';
+        } else {
+          condRow2El.style.display = 'none';
+        }
+      });
+    }
 
     // Close dropdown when clicking outside
     document.addEventListener('mousedown', function (e) {
@@ -62,27 +125,102 @@
     });
   }
 
+  function switchMode(mode) {
+    currentMode = mode;
+    if (modeListBtn) {
+      modeListBtn.classList.toggle('active', mode === 'list');
+    }
+    if (modeCondBtn) {
+      modeCondBtn.classList.toggle('active', mode === 'condition');
+    }
+
+    var colType = columnTypeMap[openColIndex] || 'text';
+
+    // Hide all content sections
+    textSectionEl.style.display = 'none';
+    numberSectionEl.style.display = 'none';
+    dateSectionEl.style.display = 'none';
+    conditionSectionEl.style.display = 'none';
+
+    if (mode === 'list') {
+      if (colType === 'number') {
+        numberSectionEl.style.display = '';
+      } else if (colType === 'date') {
+        dateSectionEl.style.display = '';
+      } else {
+        textSectionEl.style.display = '';
+      }
+    } else {
+      conditionSectionEl.style.display = '';
+      populateConditionOps(colType);
+    }
+  }
+
+  function populateConditionOps(colType) {
+    condOpEl.innerHTML = '';
+    var ops = colType === 'number' ? numberConditions :
+              colType === 'date' ? dateConditions : textConditions;
+
+    ops.forEach(function (op) {
+      var opt = document.createElement('option');
+      opt.value = op.value;
+      opt.textContent = op.label;
+      condOpEl.appendChild(opt);
+    });
+
+    // Set input types
+    if (colType === 'number') {
+      condValEl.type = 'number';
+      condVal2El.type = 'number';
+      condValEl.placeholder = 'Value…';
+      condVal2El.placeholder = 'Value 2…';
+    } else if (colType === 'date') {
+      condValEl.type = 'date';
+      condVal2El.type = 'date';
+      condValEl.placeholder = '';
+      condVal2El.placeholder = '';
+    } else {
+      condValEl.type = 'text';
+      condVal2El.type = 'text';
+      condValEl.placeholder = 'Value…';
+      condVal2El.placeholder = '';
+    }
+
+    // Restore existing condition values
+    var existing = filterState[openColIndex];
+    if (existing && existing.mode === 'condition') {
+      condOpEl.value = existing.op;
+      condValEl.value = existing.value || '';
+      if (existing.value2 != null) {
+        condVal2El.value = existing.value2;
+        condRow2El.style.display = '';
+      }
+    } else {
+      condValEl.value = '';
+      condVal2El.value = '';
+      condRow2El.style.display = 'none';
+    }
+
+    // Trigger change to show/hide row2
+    condOpEl.dispatchEvent(new Event('change'));
+  }
+
   /**
    * Build unique-value cache from raw (unfiltered) rows + build columnTypeMap.
-   * @param {{ value: any, formattedValue: string }[][]} rawRows
-   * @param {{ fieldName: string, dataType: string, index: number, effectiveType?: string }[]} columns
    */
   function buildUniqueValues(rawRows, columns) {
     uniqueValuesCache = {};
     columnTypeMap = {};
 
     columns.forEach(function (col) {
-      // Determine effective type
       var eType = col.effectiveType || 'text';
       columnTypeMap[col.index] = eType;
 
-      // Always build unique values (useful for text filter)
       var vals = new Set();
       rawRows.forEach(function (row) {
         var cell = row[col.index];
         vals.add(cell ? cell.formattedValue : '(Blank)');
       });
-      // Sort values alphabetically
       uniqueValuesCache[col.index] = Array.from(vals).sort(function (a, b) {
         return a.localeCompare(b);
       });
@@ -91,8 +229,6 @@
 
   /**
    * Open the filter dropdown for a column.
-   * @param {number} colIndex
-   * @param {HTMLElement} anchorEl – the <th> element to position near
    */
   function openDropdown(colIndex, anchorEl) {
     if (openColIndex === colIndex && dropdownEl.style.display !== 'none') {
@@ -103,12 +239,31 @@
     openColIndex = colIndex;
     var colType = columnTypeMap[colIndex] || 'text';
 
+    // Determine starting mode from existing filter state
+    var existing = filterState[colIndex];
+    if (existing && existing.mode === 'condition') {
+      currentMode = 'condition';
+    } else {
+      currentMode = 'list';
+    }
+
+    // Show mode bar
+    if (modeBarEl) {
+      modeBarEl.style.display = '';
+      modeListBtn.classList.toggle('active', currentMode === 'list');
+      modeCondBtn.classList.toggle('active', currentMode === 'condition');
+    }
+
     // Hide all sections first
     textSectionEl.style.display = 'none';
     numberSectionEl.style.display = 'none';
     dateSectionEl.style.display = 'none';
+    conditionSectionEl.style.display = 'none';
 
-    if (colType === 'number') {
+    if (currentMode === 'condition') {
+      conditionSectionEl.style.display = '';
+      populateConditionOps(colType);
+    } else if (colType === 'number') {
       openNumberFilter(colIndex);
     } else if (colType === 'date') {
       openDateFilter(colIndex);
@@ -126,7 +281,7 @@
 
     var allVals = uniqueValuesCache[colIndex] || [];
     var existing = filterState[colIndex];
-    if (existing && existing.type === 'text') {
+    if (existing && existing.type === 'text' && existing.mode === 'list') {
       pendingSet = new Set(existing.selected);
     } else {
       pendingSet = new Set(allVals);
@@ -140,7 +295,7 @@
     numberSectionEl.style.display = '';
 
     var existing = filterState[colIndex];
-    if (existing && existing.type === 'number') {
+    if (existing && existing.type === 'number' && existing.mode === 'range') {
       numMinEl.value = existing.min != null ? existing.min : '';
       numMaxEl.value = existing.max != null ? existing.max : '';
     } else {
@@ -154,7 +309,7 @@
     dateSectionEl.style.display = '';
 
     var existing = filterState[colIndex];
-    if (existing && existing.type === 'date') {
+    if (existing && existing.type === 'date' && existing.mode === 'range') {
       dateFromEl.value = existing.from || '';
       dateToEl.value = existing.to || '';
     } else {
@@ -170,15 +325,11 @@
     pendingSet = null;
   }
 
-  /**
-   * Position the dropdown below the anchor th element.
-   */
   function positionDropdown(anchor) {
     var rect = anchor.getBoundingClientRect();
-    var dropdownWidth = 260;
+    var dropdownWidth = 280;
     var left = rect.left;
 
-    // Keep within viewport
     if (left + dropdownWidth > window.innerWidth) {
       left = window.innerWidth - dropdownWidth - 8;
     }
@@ -188,9 +339,6 @@
     dropdownEl.style.left = left + 'px';
   }
 
-  /**
-   * Render the checkbox list (text filter).
-   */
   function renderChecklist(values) {
     filterListEl.innerHTML = '';
     var frag = document.createDocumentFragment();
@@ -242,7 +390,9 @@
   function applyDropdown() {
     var colType = columnTypeMap[openColIndex] || 'text';
 
-    if (colType === 'number') {
+    if (currentMode === 'condition') {
+      applyConditionFilter(colType);
+    } else if (colType === 'number') {
       applyNumberFilter();
     } else if (colType === 'date') {
       applyDateFilter();
@@ -252,19 +402,18 @@
 
     closeDropdown();
 
-    // Trigger refresh pipeline
     if (typeof window.SenestiaTable.refresh === 'function') {
+      window.SenestiaTable.PaginationManager.resetPage();
       window.SenestiaTable.refresh();
     }
   }
 
   function applyTextFilter() {
     var allVals = uniqueValuesCache[openColIndex] || [];
-    // If all selected, remove the filter for this column
     if (pendingSet.size === allVals.length) {
       delete filterState[openColIndex];
     } else {
-      filterState[openColIndex] = { type: 'text', selected: new Set(pendingSet) };
+      filterState[openColIndex] = { type: 'text', mode: 'list', selected: new Set(pendingSet) };
     }
   }
 
@@ -272,11 +421,10 @@
     var minVal = numMinEl.value !== '' ? parseFloat(numMinEl.value) : null;
     var maxVal = numMaxEl.value !== '' ? parseFloat(numMaxEl.value) : null;
 
-    // If both empty, remove filter
     if (minVal == null && maxVal == null) {
       delete filterState[openColIndex];
     } else {
-      filterState[openColIndex] = { type: 'number', min: minVal, max: maxVal };
+      filterState[openColIndex] = { type: 'number', mode: 'range', min: minVal, max: maxVal };
     }
   }
 
@@ -284,17 +432,60 @@
     var from = dateFromEl.value || null;
     var to = dateToEl.value || null;
 
-    // If both empty, remove filter
     if (!from && !to) {
       delete filterState[openColIndex];
     } else {
-      filterState[openColIndex] = { type: 'date', from: from, to: to };
+      filterState[openColIndex] = { type: 'date', mode: 'range', from: from, to: to };
     }
+  }
+
+  function applyConditionFilter(colType) {
+    var op = condOpEl.value;
+    var val = condValEl.value;
+    var val2 = condVal2El.value;
+
+    if (!val && op !== 'between') {
+      delete filterState[openColIndex];
+      return;
+    }
+
+    var entry = {
+      type: colType,
+      mode: 'condition',
+      op: op,
+      value: val,
+    };
+
+    if (op === 'between' && val2) {
+      entry.value2 = val2;
+    }
+
+    filterState[openColIndex] = entry;
+  }
+
+  /**
+   * Clear filter for a single column.
+   */
+  function clearColumn(colIndex) {
+    delete filterState[colIndex];
+  }
+
+  /**
+   * Clear all column filters.
+   */
+  function clearAllFilters() {
+    filterState = {};
+  }
+
+  /**
+   * Get count of active column filters.
+   */
+  function getActiveCount() {
+    return Object.keys(filterState).length;
   }
 
   /**
    * Set the global search term.
-   * @param {string} term
    */
   function setGlobalSearch(term) {
     globalSearchTerm = (term || '').toLowerCase();
@@ -302,8 +493,6 @@
 
   /**
    * Apply both column filters and global search.
-   * @param {{ value: any, formattedValue: string }[][]} rows
-   * @returns {{ value: any, formattedValue: string }[][]}
    */
   function apply(rows) {
     var result = rows;
@@ -316,12 +505,14 @@
           var entry = filterState[ci];
           var cell = row[ci];
 
-          if (entry.type === 'text') {
+          // List mode (text)
+          if (entry.mode === 'list' && entry.type === 'text') {
             var fv = cell ? cell.formattedValue : '(Blank)';
             return entry.selected.has(fv);
           }
 
-          if (entry.type === 'number') {
+          // Range mode (number)
+          if (entry.mode === 'range' && entry.type === 'number') {
             var val = cell ? parseFloat(cell.value) : NaN;
             if (isNaN(val)) return false;
             if (entry.min != null && val < entry.min) return false;
@@ -329,16 +520,21 @@
             return true;
           }
 
-          if (entry.type === 'date') {
+          // Range mode (date)
+          if (entry.mode === 'range' && entry.type === 'date') {
             var raw = cell ? cell.value : null;
             if (!raw) return false;
             var d = new Date(raw);
             if (isNaN(d.getTime())) return false;
-            // Normalize to YYYY-MM-DD for comparison
             var dateStr = d.toISOString().slice(0, 10);
             if (entry.from && dateStr < entry.from) return false;
             if (entry.to && dateStr > entry.to) return false;
             return true;
+          }
+
+          // Condition mode
+          if (entry.mode === 'condition') {
+            return evalCondition(entry, cell);
           }
 
           return true;
@@ -359,6 +555,66 @@
     return result;
   }
 
+  /**
+   * Evaluate a condition filter against a cell.
+   */
+  function evalCondition(entry, cell) {
+    var op = entry.op;
+
+    if (entry.type === 'text') {
+      var fv = (cell ? cell.formattedValue : '').toLowerCase();
+      var val = (entry.value || '').toLowerCase();
+      switch (op) {
+        case 'contains': return fv.indexOf(val) >= 0;
+        case 'equals': return fv === val;
+        case 'startsWith': return fv.indexOf(val) === 0;
+        case 'endsWith': return fv.length >= val.length && fv.slice(-val.length) === val;
+        case 'notContains': return fv.indexOf(val) < 0;
+        default: return true;
+      }
+    }
+
+    if (entry.type === 'number') {
+      var num = cell ? parseFloat(cell.value) : NaN;
+      if (isNaN(num)) return false;
+      var v = parseFloat(entry.value);
+      if (isNaN(v) && op !== 'between') return true;
+      switch (op) {
+        case 'eq': return num === v;
+        case 'neq': return num !== v;
+        case 'gt': return num > v;
+        case 'lt': return num < v;
+        case 'gte': return num >= v;
+        case 'lte': return num <= v;
+        case 'between':
+          var v2 = parseFloat(entry.value2);
+          if (isNaN(v) || isNaN(v2)) return true;
+          return num >= v && num <= v2;
+        default: return true;
+      }
+    }
+
+    if (entry.type === 'date') {
+      var raw = cell ? cell.value : null;
+      if (!raw) return false;
+      var d = new Date(raw);
+      if (isNaN(d.getTime())) return false;
+      var dateStr = d.toISOString().slice(0, 10);
+      var cv = entry.value || '';
+      switch (op) {
+        case 'eq': return dateStr === cv;
+        case 'before': return dateStr < cv;
+        case 'after': return dateStr > cv;
+        case 'between':
+          var cv2 = entry.value2 || '';
+          return dateStr >= cv && dateStr <= cv2;
+        default: return true;
+      }
+    }
+
+    return true;
+  }
+
   function getState() { return filterState; }
 
   function reset() {
@@ -376,5 +632,8 @@
     apply: apply,
     getState: getState,
     reset: reset,
+    clearColumn: clearColumn,
+    clearAllFilters: clearAllFilters,
+    getActiveCount: getActiveCount,
   };
 })();

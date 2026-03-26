@@ -15,7 +15,7 @@
   var columnDropdownEl, columnListEl;
   var pendingColumnSet = null;
 
-  /** Refresh the full pipeline: filter → sort → paginate → render */
+  /** Refresh the full pipeline: filter → sort → group → paginate → render */
   function refresh() {
     var columns = ST.DataManager.getColumns();
     var rawRows = ST.DataManager.getRawRows();
@@ -26,26 +26,75 @@
     // 2. Sort
     sortedRows = ST.SortManager.apply(filteredRows, columns);
 
-    // 3. Pagination update
-    ST.PaginationManager.update(sortedRows.length);
+    // 3. Precompute format stats
+    ST.FormatManager.precompute(sortedRows, columns);
 
-    // 4. Slice current page
-    var pageRows = ST.PaginationManager.getCurrentPageRows(sortedRows);
+    // 4. Check grouping
+    var isGrouped = ST.GroupManager.isGrouped();
 
-    // 5. Re-render header (to update sort/filter indicators)
-    ST.TableRenderer.renderHeader(
-      columns,
-      ST.SortManager.getState(),
-      onSortClick,
-      onFilterClick,
-      ST.FilterManager.getState()
-    );
+    if (isGrouped) {
+      // Grouped pipeline: no pagination, render all groups
+      var groupData = ST.GroupManager.buildGroups(sortedRows, columns);
 
-    // 6. Render body
-    ST.TableRenderer.renderBody(pageRows, columns);
+      // Render header
+      ST.TableRenderer.renderHeader(
+        columns,
+        ST.SortManager.getState(),
+        onSortClick,
+        onFilterClick,
+        ST.FilterManager.getState(),
+        onFilterClear
+      );
 
-    // 7. Row count
+      // Render grouped body
+      ST.TableRenderer.renderGroupedBody(groupData, columns, function () {
+        refresh(); // re-render on expand/collapse
+      });
+
+      // Hide pagination when grouped
+      document.getElementById('pagination-bar').style.display = 'none';
+
+      // Show expand/collapse buttons
+      document.getElementById('btn-expand-all').style.display = '';
+      document.getElementById('btn-collapse-all').style.display = '';
+    } else {
+      // Normal pipeline
+      // 4. Pagination update
+      ST.PaginationManager.update(sortedRows.length);
+
+      // 5. Slice current page
+      var pageRows = ST.PaginationManager.getCurrentPageRows(sortedRows);
+
+      // 6. Render header
+      ST.TableRenderer.renderHeader(
+        columns,
+        ST.SortManager.getState(),
+        onSortClick,
+        onFilterClick,
+        ST.FilterManager.getState(),
+        onFilterClear
+      );
+
+      // 7. Render body
+      ST.TableRenderer.renderBody(pageRows, columns);
+
+      // Show pagination
+      document.getElementById('pagination-bar').style.display = '';
+
+      // Hide expand/collapse buttons
+      document.getElementById('btn-expand-all').style.display = 'none';
+      document.getElementById('btn-collapse-all').style.display = 'none';
+    }
+
+    // 8. Attach column resize handles
+    var thElements = ST.TableRenderer.getThElements();
+    ST.ColumnResizeManager.attachToHeaders(thElements, columns);
+
+    // 9. Row count
     updateRowCount(filteredRows.length, rawRows.length);
+
+    // 10. Filter count badge
+    updateFilterBadge();
   }
 
   // Expose refresh globally so managers can call it
@@ -61,6 +110,12 @@
 
   function onFilterClick(colIndex, thEl) {
     ST.FilterManager.openDropdown(colIndex, thEl);
+  }
+
+  function onFilterClear(colIndex) {
+    ST.FilterManager.clearColumn(colIndex);
+    ST.PaginationManager.resetPage();
+    refresh();
   }
 
   function onGlobalSearch() {
@@ -79,16 +134,178 @@
     }
   }
 
+  function updateFilterBadge() {
+    var badge = document.getElementById('filter-count-badge');
+    if (!badge) return;
+    var count = ST.FilterManager.getActiveCount();
+    if (count > 0) {
+      badge.textContent = count + ' filter' + (count > 1 ? 's' : '');
+    } else {
+      badge.textContent = '';
+    }
+  }
+
+  // ── Context Menu ──
+
+  function setupContextMenu() {
+    var tableEl = document.getElementById('super-table');
+    tableEl.addEventListener('contextmenu', function (e) {
+      // Find the <th> that was right-clicked
+      var th = e.target.closest('th');
+      if (!th) return;
+      e.preventDefault();
+
+      var headerRow = th.parentElement;
+      var colIndex = Array.prototype.indexOf.call(headerRow.children, th);
+      var columns = ST.DataManager.getColumns();
+      if (colIndex < 0 || colIndex >= columns.length) return;
+
+      var col = columns[colIndex];
+      var icons = ST.ContextMenu.icons;
+      var sortState = ST.SortManager.getState();
+      var pinned = ST.DataManager.getPinnedColumns();
+      var isPinned = pinned.indexOf(col.fieldName) >= 0;
+      var isGroupedByThis = ST.GroupManager.getGroupBy() === colIndex;
+
+      var items = [
+        {
+          label: 'Sort Ascending',
+          icon: icons.sortAsc,
+          active: sortState && sortState.colIndex === colIndex && sortState.direction === 'asc',
+          action: function () {
+            ST.SortManager.setSort(colIndex, 'asc');
+            ST.PaginationManager.resetPage();
+            refresh();
+          }
+        },
+        {
+          label: 'Sort Descending',
+          icon: icons.sortDesc,
+          active: sortState && sortState.colIndex === colIndex && sortState.direction === 'desc',
+          action: function () {
+            ST.SortManager.setSort(colIndex, 'desc');
+            ST.PaginationManager.resetPage();
+            refresh();
+          }
+        },
+        { label: '---' },
+        {
+          label: isPinned ? 'Unpin Column' : 'Pin Column',
+          icon: isPinned ? icons.unpin : icons.pin,
+          action: function () {
+            var current = ST.DataManager.getPinnedColumns().slice();
+            if (isPinned) {
+              current = current.filter(function (f) { return f !== col.fieldName; });
+            } else {
+              current.push(col.fieldName);
+            }
+            ST.DataManager.setPinnedColumns(current);
+            savePinnedToSettings(current);
+            refresh();
+          }
+        },
+        {
+          label: 'Auto-size Column',
+          icon: icons.autoSize,
+          action: function () {
+            // Trigger auto-fit via resize manager
+            var thEls = ST.TableRenderer.getThElements();
+            if (thEls[colIndex]) {
+              // Double-click simulation handled internally
+              ST.ColumnResizeManager.attachToHeaders(thEls, columns);
+            }
+            refresh();
+          }
+        },
+        {
+          label: 'Hide Column',
+          icon: icons.hide,
+          action: function () {
+            hideColumn(col.fieldName);
+          }
+        },
+        { label: '---' },
+        {
+          label: isGroupedByThis ? 'Remove Grouping' : 'Group by this Column',
+          icon: isGroupedByThis ? icons.ungroup : icons.group,
+          action: function () {
+            if (isGroupedByThis) {
+              ST.GroupManager.removeGrouping();
+            } else {
+              ST.GroupManager.setGroupBy(colIndex, col.fieldName);
+            }
+            ST.PaginationManager.resetPage();
+            refresh();
+          }
+        },
+      ];
+
+      // Add aggregation method submenu if grouped
+      if (ST.GroupManager.isGrouped()) {
+        var currentAgg = ST.GroupManager.getAggMethod();
+        items.push({ label: '---' });
+        ['sum', 'avg', 'count'].forEach(function (method) {
+          items.push({
+            label: 'Aggregate: ' + method.charAt(0).toUpperCase() + method.slice(1),
+            active: currentAgg === method,
+            action: function () {
+              ST.GroupManager.setAggMethod(method);
+              refresh();
+            }
+          });
+        });
+      }
+
+      ST.ContextMenu.show(e.clientX, e.clientY, items);
+    });
+  }
+
+  function hideColumn(fieldName) {
+    var current = ST.DataManager.getSelectedFields();
+    var allCols = ST.DataManager.getAllColumns();
+
+    if (!current) {
+      // Currently showing all → create list with this one removed
+      current = allCols.map(function (c) { return c.fieldName; });
+    }
+
+    var newFields = current.filter(function (f) { return f !== fieldName; });
+    if (newFields.length === 0) {
+      alert('Cannot hide the last column.');
+      return;
+    }
+
+    ST.DataManager.setSelectedFields(newFields);
+    tableau.extensions.settings.set('selectedFields', JSON.stringify(newFields));
+    tableau.extensions.settings.saveAsync();
+
+    // Reset sort/filter and refresh
+    ST.SortManager.reset();
+    ST.FilterManager.reset();
+    ST.FilterManager.buildUniqueValues(
+      ST.DataManager.getRawRows(),
+      ST.DataManager.getColumns()
+    );
+    ST.PaginationManager.resetPage();
+    refresh();
+  }
+
+  function savePinnedToSettings(pinned) {
+    try {
+      tableau.extensions.settings.set('pinnedColumns', JSON.stringify(pinned));
+      tableau.extensions.settings.saveAsync();
+    } catch (e) { /* ignore */ }
+  }
+
   // ── Configure ──
 
   function openConfigure() {
     var dialogUrl = window.location.href.replace(/[^/]*$/, 'dialog.html');
     console.log('Opening dialog:', dialogUrl);
     try {
-      tableau.extensions.ui.displayDialogAsync(dialogUrl, '', { width: 800, height: 600 })
+      tableau.extensions.ui.displayDialogAsync(dialogUrl, '', { width: 800, height: 650 })
         .then(function (result) {
           if (result) {
-            // Decode payload from dialog (contains all config directly)
             var payload;
             try { payload = JSON.parse(result); } catch (e) { payload = null; }
 
@@ -98,17 +315,21 @@
             var types = {};
 
             if (payload && payload.worksheetName) {
-              // New payload format — use data directly (avoids settings timing issues)
               worksheetName = payload.worksheetName;
               savedFields = payload.selectedFields || null;
               renames = payload.columnRenames || {};
               types = payload.columnTypes || {};
-              // Restore column order from dialog
               if (payload.columnOrder) {
                 ST.DataManager.setColumnOrder(payload.columnOrder);
               }
+              // Restore format settings from dialog
+              if (payload.numberFormats) {
+                ST.FormatManager.setNumberFormats(payload.numberFormats);
+              }
+              if (payload.conditionalFormats) {
+                ST.FormatManager.setConditionalFormats(payload.conditionalFormats);
+              }
             } else {
-              // Fallback: old format (plain worksheet name string)
               worksheetName = result;
               var fieldsJson = tableau.extensions.settings.get('selectedFields') || '';
               if (fieldsJson) {
@@ -160,9 +381,16 @@
       // Reset managers
       ST.SortManager.reset();
       ST.FilterManager.reset();
+      ST.GroupManager.reset();
       ST.PaginationManager.resetPage();
+      ST.SelectionManager.clearSelection();
+      ST.ColumnResizeManager.resetLayout();
 
-      // Build unique values for filter dropdowns (using visible columns/rows)
+      // Restore column widths
+      var widths = ST.DataManager.getColumnWidths();
+      ST.ColumnResizeManager.setWidths(widths);
+
+      // Build unique values for filter dropdowns
       ST.FilterManager.buildUniqueValues(
         ST.DataManager.getRawRows(),
         ST.DataManager.getColumns()
@@ -171,7 +399,7 @@
       // Initial render
       refresh();
 
-      // Listen for data changes on this worksheet
+      // Listen for data changes
       listenForChanges(worksheetName);
     } catch (err) {
       console.error('Failed to load data:', err);
@@ -182,7 +410,6 @@
   var changeListenerRemover = null;
 
   function listenForChanges(worksheetName) {
-    // Remove previous listener
     if (changeListenerRemover) {
       changeListenerRemover();
       changeListenerRemover = null;
@@ -194,7 +421,6 @@
     });
     if (!worksheet) return;
 
-    // Re-fetch data when filters/marks change
     changeListenerRemover = worksheet.addEventListener(
       tableau.TableauEventType.FilterChanged,
       function () { loadWorksheetData(worksheetName); }
@@ -213,10 +439,9 @@
     document.getElementById('col-apply').addEventListener('click', colApply);
     document.getElementById('col-cancel').addEventListener('click', colClose);
 
-    // Close when clicking outside
     document.addEventListener('mousedown', function (e) {
       if (columnDropdownEl.style.display !== 'none' && !columnDropdownEl.contains(e.target) &&
-          e.target.id !== 'btn-columns') {
+          e.target.id !== 'btn-columns' && !e.target.closest('#btn-columns')) {
         colClose();
       }
     });
@@ -231,7 +456,6 @@
     var allCols = ST.DataManager.getAllColumns();
     if (!allCols || allCols.length === 0) return;
 
-    // Build pending set from current selection
     var currentFields = ST.DataManager.getSelectedFields();
     if (currentFields) {
       pendingColumnSet = new Set(currentFields);
@@ -275,7 +499,7 @@
   function positionColumnDropdown() {
     var btn = document.getElementById('btn-columns');
     var rect = btn.getBoundingClientRect();
-    var dropdownWidth = 260;
+    var dropdownWidth = 280;
     var left = rect.right - dropdownWidth;
     if (left < 0) left = 4;
 
@@ -301,7 +525,6 @@
     }
 
     var allCols = ST.DataManager.getAllColumns();
-    // Respect saved column order if available
     var savedOrder = ST.DataManager.getColumnOrder();
     var orderedCols = allCols;
     if (savedOrder && savedOrder.length > 0) {
@@ -317,7 +540,6 @@
       .filter(function (c) { return pendingColumnSet.has(c.fieldName); })
       .map(function (c) { return c.fieldName; });
 
-    // Check if all are selected
     if (selected.length === allCols.length) {
       ST.DataManager.setSelectedFields(null);
       tableau.extensions.settings.set('selectedFields', '');
@@ -326,12 +548,9 @@
       tableau.extensions.settings.set('selectedFields', JSON.stringify(selected));
     }
 
-    // Save to Tableau settings
     tableau.extensions.settings.saveAsync();
-
     colClose();
 
-    // Reset sort/filter (column indices changed) and refresh
     ST.SortManager.reset();
     ST.FilterManager.reset();
     ST.FilterManager.buildUniqueValues(
@@ -350,9 +569,15 @@
   // ── Init ──
 
   function initApp() {
+    // Init theme first (so CSS vars are set before anything renders)
+    ST.ThemeManager.init();
+
     ST.TableRenderer.init();
     ST.FilterManager.init();
     ST.PaginationManager.init();
+    ST.ColumnResizeManager.init();
+    ST.ContextMenu.init();
+    ST.SelectionManager.init();
     initColumnPicker();
 
     // Toolbar events
@@ -365,20 +590,48 @@
       ST.ExportManager.exportExcel(ST.DataManager.getColumns(), sortedRows);
     });
 
+    // Theme toggle
+    document.getElementById('btn-theme').addEventListener('click', function () {
+      var theme = ST.ThemeManager.toggle();
+      // Save to Tableau settings too
+      try {
+        tableau.extensions.settings.set('theme', theme);
+        tableau.extensions.settings.saveAsync();
+      } catch (e) { /* ignore if not initialized */ }
+    });
+
+    // Expand/Collapse all buttons
+    document.getElementById('btn-expand-all').addEventListener('click', function () {
+      ST.GroupManager.expandAll();
+      refresh();
+    });
+    document.getElementById('btn-collapse-all').addEventListener('click', function () {
+      ST.GroupManager.collapseAll();
+      refresh();
+    });
+
+    // Context menu on table headers
+    setupContextMenu();
+
     // Init Tableau Extensions API
     console.log('Initializing Tableau Extensions API…');
     tableau.extensions.initializeAsync({ configure: openConfigure }).then(function () {
       console.log('Tableau API initialized OK');
 
-      // Hide configure button in viewing mode (Server/Cloud viewers can't open dialogs)
+      // Hide configure button in viewing mode
       var envMode = tableau.extensions.environment.mode;
       if (envMode === 'viewing') {
         document.getElementById('btn-configure').style.display = 'none';
       }
 
+      // Restore theme from settings
+      var savedTheme = tableau.extensions.settings.get('theme');
+      if (savedTheme) {
+        ST.ThemeManager.setTheme(savedTheme);
+      }
+
       // Check saved settings
       var saved = tableau.extensions.settings.get('worksheetName');
-      // Guard against corrupted setting (entire JSON payload saved as worksheetName)
       if (saved) {
         try {
           var parsed = JSON.parse(saved);
@@ -387,10 +640,10 @@
             tableau.extensions.settings.set('worksheetName', saved);
             tableau.extensions.settings.saveAsync();
           }
-        } catch (e) { /* not JSON — already a plain name, use as-is */ }
+        } catch (e) { /* not JSON — already a plain name */ }
         console.log('Restoring saved worksheet:', saved);
 
-        // Restore selected fields from settings
+        // Restore selected fields
         var fieldsJson = tableau.extensions.settings.get('selectedFields') || '';
         if (fieldsJson) {
           try {
@@ -398,10 +651,10 @@
             if (Array.isArray(savedFields) && savedFields.length > 0) {
               ST.DataManager.setSelectedFields(savedFields);
             }
-          } catch (e) { /* ignore parse error */ }
+          } catch (e) { /* ignore */ }
         }
 
-        // Restore columnRenames / columnTypes from settings
+        // Restore renames / types / order
         var renamesJson = tableau.extensions.settings.get('columnRenames') || '';
         if (renamesJson) {
           try { ST.DataManager.setColumnRenames(JSON.parse(renamesJson)); } catch (e) { /* ignore */ }
@@ -415,9 +668,31 @@
           try { ST.DataManager.setColumnOrder(JSON.parse(orderJson)); } catch (e) { /* ignore */ }
         }
 
+        // Restore pinned columns
+        var pinnedJson = tableau.extensions.settings.get('pinnedColumns') || '';
+        if (pinnedJson) {
+          try { ST.DataManager.setPinnedColumns(JSON.parse(pinnedJson)); } catch (e) { /* ignore */ }
+        }
+
+        // Restore column widths
+        var widthsJson = tableau.extensions.settings.get('columnWidths') || '';
+        if (widthsJson) {
+          try { ST.DataManager.setColumnWidths(JSON.parse(widthsJson)); } catch (e) { /* ignore */ }
+        }
+
+        // Restore format settings
+        var numFmtJson = tableau.extensions.settings.get('numberFormats') || '';
+        if (numFmtJson) {
+          try { ST.FormatManager.setNumberFormats(JSON.parse(numFmtJson)); } catch (e) { /* ignore */ }
+        }
+        var condFmtJson = tableau.extensions.settings.get('conditionalFormats') || '';
+        if (condFmtJson) {
+          try { ST.FormatManager.setConditionalFormats(JSON.parse(condFmtJson)); } catch (e) { /* ignore */ }
+        }
+
         loadWorksheetData(saved);
       } else {
-        ST.TableRenderer.showEmpty('Right-click → Configure to select a worksheet.');
+        ST.TableRenderer.showEmpty('Click Configure to select a worksheet.');
       }
     }).catch(function (err) {
       console.error('Tableau init error:', err);

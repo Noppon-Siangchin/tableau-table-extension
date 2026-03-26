@@ -1,5 +1,6 @@
 /**
  * TableRenderer – Render header and body DOM for the super-table.
+ * Supports format rendering, grouped body, pinned columns, and selection.
  * Attaches to window.SenestiaTable.TableRenderer
  */
 (function () {
@@ -11,6 +12,9 @@
   var tbodyEl = null;
   var emptyEl = null;
 
+  // Keep track of last rendered header <th> elements for resize attachment
+  var lastThElements = [];
+
   function init() {
     theadEl = document.getElementById('table-head');
     tbodyEl = document.getElementById('table-body');
@@ -19,21 +23,34 @@
 
   /**
    * Render (or re-render) the table header row.
-   * @param {{ fieldName: string, dataType: string, index: number }[]} columns
-   * @param {{ colIndex: number, direction: string }|null} sortState  – current sort
-   * @param {function} onSortClick  – callback(colIndex)
-   * @param {function} onFilterClick – callback(colIndex, thElement)
-   * @param {object} filterState    – { colIndex: Set } active filters
+   * @param {object[]} columns
+   * @param {object|null} sortState
+   * @param {function} onSortClick
+   * @param {function} onFilterClick
+   * @param {object} filterState
+   * @param {function} [onFilterClear] – callback(colIndex) to clear a single column filter
    */
-  function renderHeader(columns, sortState, onSortClick, onFilterClick, filterState) {
+  function renderHeader(columns, sortState, onSortClick, onFilterClick, filterState, onFilterClear) {
     theadEl.innerHTML = '';
+    lastThElements = [];
     var tr = document.createElement('tr');
+
+    var pinned = window.SenestiaTable.DataManager ? window.SenestiaTable.DataManager.getPinnedColumns() : [];
+    var pinnedSet = new Set(pinned);
+    var pinnedLeftOffset = 0;
 
     columns.forEach(function (col) {
       var th = document.createElement('th');
       var eType = col.effectiveType || (isNumericType(col.dataType) ? 'number' : 'text');
       if (eType === 'number') {
         th.classList.add('col-number');
+      }
+
+      // Pinned column styling
+      var isPinned = pinnedSet.has(col.fieldName);
+      if (isPinned) {
+        th.classList.add('pinned');
+        th.style.left = pinnedLeftOffset + 'px';
       }
 
       // Column label
@@ -54,7 +71,7 @@
       var filterBtn = document.createElement('button');
       filterBtn.className = 'col-filter-btn';
       filterBtn.innerHTML = '<svg width="10" height="10" viewBox="0 0 10 10"><path d="M0 1h10L6.5 5v3.5L3.5 10V5z" fill="currentColor"/></svg>';
-      filterBtn.title = 'Filter ' + col.fieldName;
+      filterBtn.title = 'Filter ' + (col.displayName || col.fieldName);
       if (filterState && filterState[col.index]) {
         filterBtn.classList.add('active');
       }
@@ -64,21 +81,67 @@
       });
       th.appendChild(filterBtn);
 
+      // Filter clear badge (x) if filter active
+      if (filterState && filterState[col.index] && onFilterClear) {
+        var clearBtn = document.createElement('button');
+        clearBtn.className = 'col-filter-clear';
+        clearBtn.textContent = '\u00D7';
+        clearBtn.title = 'Clear filter';
+        clearBtn.addEventListener('click', function (e) {
+          e.stopPropagation();
+          onFilterClear(col.index);
+        });
+        th.appendChild(clearBtn);
+      }
+
       // Sort on header click
       th.addEventListener('click', function () {
         onSortClick(col.index);
       });
 
       tr.appendChild(th);
+      lastThElements.push(th);
+
+      // Track left offset for next pinned column
+      if (isPinned) {
+        // We'll recalculate after the element is in the DOM
+        th._isPinned = true;
+      }
     });
 
     theadEl.appendChild(tr);
+
+    // Recalculate pinned offsets after DOM insertion
+    recalcPinnedOffsets(columns, pinnedSet);
+  }
+
+  function recalcPinnedOffsets(columns, pinnedSet) {
+    var offset = 0;
+    var lastPinnedIdx = -1;
+
+    lastThElements.forEach(function (th, idx) {
+      if (th._isPinned) {
+        th.style.left = offset + 'px';
+        offset += th.offsetWidth;
+        lastPinnedIdx = idx;
+      }
+    });
+
+    // Mark last pinned column
+    if (lastPinnedIdx >= 0) {
+      lastThElements[lastPinnedIdx].classList.add('pin-last');
+    }
+  }
+
+  /** Get <th> elements (for resize handle attachment) */
+  function getThElements() {
+    return lastThElements;
   }
 
   /**
    * Render table body rows.
    * @param {{ value: any, formattedValue: string }[][]} rows
-   * @param {{ fieldName: string, dataType: string, index: number }[]} columns
+   * @param {object[]} columns
    */
   function renderBody(rows, columns) {
     tbodyEl.innerHTML = '';
@@ -89,24 +152,243 @@
     }
     emptyEl.style.display = 'none';
 
+    var FM = window.SenestiaTable.FormatManager;
+    var SM = window.SenestiaTable.SelectionManager;
+    var pinned = window.SenestiaTable.DataManager ? window.SenestiaTable.DataManager.getPinnedColumns() : [];
+    var pinnedSet = new Set(pinned);
+
     var frag = document.createDocumentFragment();
     for (var r = 0; r < rows.length; r++) {
       var tr = document.createElement('tr');
       for (var c = 0; c < columns.length; c++) {
         var td = document.createElement('td');
         var cell = rows[r][c];
-        var text = cell ? cell.formattedValue : '';
-        td.textContent = text;
-        td.title = text; // tooltip for overflowed text
-        var cType = columns[c].effectiveType || (isNumericType(columns[c].dataType) ? 'number' : 'text');
+        var col = columns[c];
+
+        // Format value
+        var text;
+        if (FM) {
+          var formatted = FM.formatValue(col.fieldName, cell);
+          text = formatted !== null ? formatted : (cell ? cell.formattedValue : '');
+        } else {
+          text = cell ? cell.formattedValue : '';
+        }
+
+        // Conditional formatting
+        var cellStyle = FM ? FM.getCellStyle(col.fieldName, cell) : null;
+        if (cellStyle) {
+          if (cellStyle.barWidth) {
+            // Data bar
+            td.classList.add('cell-data-bar');
+            td.style.position = 'relative';
+            var bar = document.createElement('div');
+            bar.className = 'cell-data-bar-fill';
+            bar.style.width = cellStyle.barWidth;
+            bar.style.backgroundColor = cellStyle.barColor;
+            td.appendChild(bar);
+            var textSpan = document.createElement('span');
+            textSpan.style.position = 'relative';
+            textSpan.style.zIndex = '1';
+            textSpan.textContent = text;
+            td.appendChild(textSpan);
+          } else {
+            td.setAttribute('style', cellStyle.style);
+            td.textContent = text;
+          }
+        } else {
+          td.textContent = text;
+        }
+
+        td.title = text;
+
+        var cType = col.effectiveType || (isNumericType(col.dataType) ? 'number' : 'text');
         if (cType === 'number') {
           td.classList.add('cell-number');
         }
+
+        // Pinned column styling
+        if (pinnedSet.has(col.fieldName)) {
+          td.classList.add('pinned');
+          // Left offset will be set by recalcBodyPinned after append
+          td._isPinned = true;
+        }
+
         tr.appendChild(td);
       }
+
+      // Selection click handler
+      if (SM) {
+        SM.attachRowClick(tr, r);
+      }
+
       frag.appendChild(tr);
     }
     tbodyEl.appendChild(frag);
+
+    // Recalculate pinned offsets for body cells
+    recalcBodyPinned(pinnedSet, columns);
+  }
+
+  /**
+   * Render grouped body with expand/collapse.
+   * @param {object} groupData – from GroupManager.buildGroups()
+   * @param {object[]} columns
+   * @param {function} onToggleGroup – callback(groupKey)
+   */
+  function renderGroupedBody(groupData, columns, onToggleGroup) {
+    tbodyEl.innerHTML = '';
+
+    if (!groupData || !groupData.groups || groupData.groups.length === 0) {
+      emptyEl.style.display = 'flex';
+      return;
+    }
+    emptyEl.style.display = 'none';
+
+    var GM = window.SenestiaTable.GroupManager;
+    var FM = window.SenestiaTable.FormatManager;
+    var SM = window.SenestiaTable.SelectionManager;
+    var pinned = window.SenestiaTable.DataManager ? window.SenestiaTable.DataManager.getPinnedColumns() : [];
+    var pinnedSet = new Set(pinned);
+
+    var frag = document.createDocumentFragment();
+    var rowIdx = 0;
+
+    groupData.groups.forEach(function (group) {
+      var expanded = GM.isExpanded(group.key);
+
+      // Group header row
+      var htr = document.createElement('tr');
+      htr.className = 'group-header-row';
+      var htd = document.createElement('td');
+      htd.colSpan = columns.length;
+
+      // Chevron
+      var chevron = document.createElement('span');
+      chevron.className = 'group-chevron' + (expanded ? '' : ' collapsed');
+      chevron.textContent = '\u25BC'; // ▼
+      htd.appendChild(chevron);
+
+      // Label
+      var labelSpan = document.createElement('span');
+      labelSpan.textContent = ' ' + group.label + ' (' + group.rows.length + ')';
+      htd.appendChild(labelSpan);
+
+      // Aggregate values
+      var aggSpan = document.createElement('span');
+      aggSpan.className = 'group-agg-values';
+      var aggParts = [];
+      Object.keys(group.aggregates).forEach(function (ci) {
+        var col = columns[parseInt(ci, 10)];
+        if (col) {
+          aggParts.push((col.displayName || col.fieldName) + ': ' + GM.formatAggregate(group.aggregates[ci]));
+        }
+      });
+      if (aggParts.length > 0) {
+        aggSpan.textContent = aggParts.join('  |  ');
+      }
+      htd.appendChild(aggSpan);
+
+      htr.appendChild(htd);
+      htr.addEventListener('click', function () {
+        GM.toggleGroup(group.key);
+        onToggleGroup(group.key);
+      });
+      frag.appendChild(htr);
+
+      // Data rows (if expanded)
+      if (expanded) {
+        for (var r = 0; r < group.rows.length; r++) {
+          var tr = document.createElement('tr');
+          for (var c = 0; c < columns.length; c++) {
+            var td = document.createElement('td');
+            var cell = group.rows[r][c];
+            var col = columns[c];
+
+            var text;
+            if (FM) {
+              var formatted = FM.formatValue(col.fieldName, cell);
+              text = formatted !== null ? formatted : (cell ? cell.formattedValue : '');
+            } else {
+              text = cell ? cell.formattedValue : '';
+            }
+
+            var cellStyle = FM ? FM.getCellStyle(col.fieldName, cell) : null;
+            if (cellStyle) {
+              if (cellStyle.barWidth) {
+                td.classList.add('cell-data-bar');
+                td.style.position = 'relative';
+                var bar = document.createElement('div');
+                bar.className = 'cell-data-bar-fill';
+                bar.style.width = cellStyle.barWidth;
+                bar.style.backgroundColor = cellStyle.barColor;
+                td.appendChild(bar);
+                var textSpan = document.createElement('span');
+                textSpan.style.position = 'relative';
+                textSpan.style.zIndex = '1';
+                textSpan.textContent = text;
+                td.appendChild(textSpan);
+              } else {
+                td.setAttribute('style', cellStyle.style);
+                td.textContent = text;
+              }
+            } else {
+              td.textContent = text;
+            }
+
+            td.title = text;
+
+            var cType = col.effectiveType || (isNumericType(col.dataType) ? 'number' : 'text');
+            if (cType === 'number') {
+              td.classList.add('cell-number');
+            }
+
+            if (pinnedSet.has(col.fieldName)) {
+              td.classList.add('pinned');
+              td._isPinned = true;
+            }
+
+            tr.appendChild(td);
+          }
+
+          if (SM) {
+            SM.attachRowClick(tr, rowIdx);
+          }
+          rowIdx++;
+          frag.appendChild(tr);
+        }
+      }
+    });
+
+    tbodyEl.appendChild(frag);
+    recalcBodyPinned(pinnedSet, columns);
+  }
+
+  function recalcBodyPinned(pinnedSet, columns) {
+    if (pinnedSet.size === 0) return;
+
+    // Get pinned offsets from header
+    var offsets = [];
+    lastThElements.forEach(function (th, idx) {
+      if (th._isPinned) {
+        offsets.push({ idx: idx, left: th.style.left });
+      }
+    });
+
+    var rows = tbodyEl.querySelectorAll('tr:not(.group-header-row)');
+    rows.forEach(function (tr) {
+      offsets.forEach(function (o) {
+        var td = tr.cells[o.idx];
+        if (td && td._isPinned) {
+          td.style.left = o.left;
+        }
+      });
+      // Mark last pinned
+      if (offsets.length > 0) {
+        var lastIdx = offsets[offsets.length - 1].idx;
+        var lastTd = tr.cells[lastIdx];
+        if (lastTd) lastTd.classList.add('pin-last');
+      }
+    });
   }
 
   /**
@@ -115,7 +397,12 @@
   function showEmpty(msg) {
     tbodyEl.innerHTML = '';
     theadEl.innerHTML = '';
-    emptyEl.textContent = msg || 'No data to display.';
+    var msgSpan = emptyEl.querySelector('span');
+    if (msgSpan) {
+      msgSpan.textContent = msg || 'No data to display.';
+    } else {
+      emptyEl.textContent = msg || 'No data to display.';
+    }
     emptyEl.style.display = 'flex';
   }
 
@@ -127,6 +414,8 @@
     init: init,
     renderHeader: renderHeader,
     renderBody: renderBody,
+    renderGroupedBody: renderGroupedBody,
+    getThElements: getThElements,
     showEmpty: showEmpty,
   };
 })();

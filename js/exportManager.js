@@ -1,12 +1,25 @@
 /**
  * ExportManager – CSV and Excel export.
  * Exports all filtered+sorted rows (not just current page).
+ * Uses FormatManager for number formatting when available.
  * Attaches to window.SenestiaTable.ExportManager
  */
 (function () {
   'use strict';
 
   window.SenestiaTable = window.SenestiaTable || {};
+
+  /**
+   * Get display text for a cell (uses FormatManager if available).
+   */
+  function getCellText(col, cell) {
+    var FM = window.SenestiaTable.FormatManager;
+    if (FM) {
+      var formatted = FM.formatValue(col.fieldName, cell);
+      if (formatted !== null) return formatted;
+    }
+    return cell ? cell.formattedValue : '';
+  }
 
   /**
    * Export filtered+sorted data as CSV.
@@ -22,16 +35,42 @@
     // Header
     lines.push(columns.map(function (c) { return csvEscape(c.displayName || c.fieldName); }).join(','));
 
-    // Data rows
-    rows.forEach(function (row) {
-      var line = columns.map(function (col, i) {
-        var cell = row[i];
-        return csvEscape(cell ? cell.formattedValue : '');
-      });
-      lines.push(line.join(','));
-    });
+    // Check if grouped
+    var GM = window.SenestiaTable.GroupManager;
+    if (GM && GM.isGrouped()) {
+      var groupData = GM.buildGroups(rows, columns);
+      if (groupData && groupData.groups) {
+        groupData.groups.forEach(function (group) {
+          // Group header line
+          var aggParts = [];
+          Object.keys(group.aggregates).forEach(function (ci) {
+            var col = columns[parseInt(ci, 10)];
+            if (col) aggParts.push((col.displayName || col.fieldName) + ': ' + GM.formatAggregate(group.aggregates[ci]));
+          });
+          var groupLine = columns.map(function (col, i) {
+            if (i === 0) return csvEscape(group.label + ' (' + group.rows.length + ')' + (aggParts.length ? ' | ' + aggParts.join(' | ') : ''));
+            return '';
+          });
+          lines.push(groupLine.join(','));
 
-    // BOM for Unicode + CRLF
+          // Data rows
+          group.rows.forEach(function (row) {
+            var line = columns.map(function (col, i) {
+              return csvEscape(getCellText(col, row[i]));
+            });
+            lines.push(line.join(','));
+          });
+        });
+      }
+    } else {
+      rows.forEach(function (row) {
+        var line = columns.map(function (col, i) {
+          return csvEscape(getCellText(col, row[i]));
+        });
+        lines.push(line.join(','));
+      });
+    }
+
     var bom = '\uFEFF';
     var csv = bom + lines.join('\r\n');
     downloadBlob(csv, filename, 'text/csv;charset=utf-8;');
@@ -39,9 +78,6 @@
 
   /**
    * Export filtered+sorted data as Excel (XLSX) via SheetJS.
-   * @param {{ fieldName: string }[]} columns
-   * @param {{ value: any, formattedValue: string }[][]} rows
-   * @param {string} [filename]
    */
   function exportExcel(columns, rows, filename) {
     filename = filename || 'senestia_table_export.xlsx';
@@ -51,20 +87,42 @@
       return;
     }
 
-    // Build 2D array: header + rows
     var aoa = [];
     aoa.push(columns.map(function (c) { return c.displayName || c.fieldName; }));
 
-    rows.forEach(function (row) {
-      aoa.push(columns.map(function (col, i) {
-        var cell = row[i];
-        return cell ? cell.formattedValue : '';
-      }));
-    });
+    var GM = window.SenestiaTable.GroupManager;
+    if (GM && GM.isGrouped()) {
+      var groupData = GM.buildGroups(rows, columns);
+      if (groupData && groupData.groups) {
+        groupData.groups.forEach(function (group) {
+          var aggParts = [];
+          Object.keys(group.aggregates).forEach(function (ci) {
+            var col = columns[parseInt(ci, 10)];
+            if (col) aggParts.push((col.displayName || col.fieldName) + ': ' + GM.formatAggregate(group.aggregates[ci]));
+          });
+          var groupRow = columns.map(function (col, i) {
+            if (i === 0) return group.label + ' (' + group.rows.length + ')' + (aggParts.length ? ' | ' + aggParts.join(' | ') : '');
+            return '';
+          });
+          aoa.push(groupRow);
+
+          group.rows.forEach(function (row) {
+            aoa.push(columns.map(function (col, i) {
+              return getCellText(col, row[i]);
+            }));
+          });
+        });
+      }
+    } else {
+      rows.forEach(function (row) {
+        aoa.push(columns.map(function (col, i) {
+          return getCellText(col, row[i]);
+        }));
+      });
+    }
 
     var ws = XLSX.utils.aoa_to_sheet(aoa);
 
-    // Auto column widths
     var colWidths = columns.map(function (c, i) {
       var maxLen = (c.displayName || c.fieldName).length;
       rows.forEach(function (row) {

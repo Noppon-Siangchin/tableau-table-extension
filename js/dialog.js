@@ -1,7 +1,8 @@
 /**
- * Dialog – Configuration dialog logic (two-step).
+ * Dialog – Configuration dialog logic (three-step).
  * Step 1: Select worksheet.
  * Step 2: Select fields to display, rename, and set types.
+ * Step 3: Number format & conditional format per column.
  */
 (function () {
   'use strict';
@@ -12,11 +13,23 @@
   var fieldRenames = {};     // { fieldName: customName }
   var fieldTypes = {};       // { fieldName: 'text'|'number'|'date' }
 
+  // Format configs
+  var numberFormats = {};    // { fieldName: { decimals, thousands, prefix, suffix, compact } }
+  var conditionalFormats = {}; // { fieldName: { type, colorMin, colorMax, target, barColor } }
+
   // DOM refs
-  var stepWorksheet, stepFields;
+  var stepWorksheet, stepFields, stepFormat;
   var listEl, btnNext, btnCancel;
-  var fieldListEl, btnBack, btnCancel2, btnOk;
+  var fieldListEl, btnBack, btnCancel2, btnNext2;
+  var btnBack2, btnCancel3, btnOk;
   var btnSelectAll, btnClearAll;
+
+  // Step 3 refs
+  var formatColumnSelect;
+  var fmtDecimals, fmtThousands, fmtPrefix, fmtSuffix, fmtCompact;
+  var condType, condColorMin, condColorMax, condColorTarget, condBarColor;
+  var condColorOptions, condBarOptions;
+  var numberFormatSection, condFormatSection;
 
   document.addEventListener('DOMContentLoaded', function () {
     // Step 1 elements
@@ -30,18 +43,57 @@
     fieldListEl = document.getElementById('field-list');
     btnBack = document.getElementById('btn-back');
     btnCancel2 = document.getElementById('btn-cancel2');
-    btnOk = document.getElementById('btn-ok');
+    btnNext2 = document.getElementById('btn-next2');
     btnSelectAll = document.getElementById('field-select-all');
     btnClearAll = document.getElementById('field-clear-all');
 
-    // Events
+    // Step 3 elements
+    stepFormat = document.getElementById('step-format');
+    btnBack2 = document.getElementById('btn-back2');
+    btnCancel3 = document.getElementById('btn-cancel3');
+    btnOk = document.getElementById('btn-ok');
+
+    formatColumnSelect = document.getElementById('format-column-select');
+    fmtDecimals = document.getElementById('fmt-decimals');
+    fmtThousands = document.getElementById('fmt-thousands');
+    fmtPrefix = document.getElementById('fmt-prefix');
+    fmtSuffix = document.getElementById('fmt-suffix');
+    fmtCompact = document.getElementById('fmt-compact');
+    condType = document.getElementById('cond-type');
+    condColorMin = document.getElementById('cond-color-min');
+    condColorMax = document.getElementById('cond-color-max');
+    condColorTarget = document.getElementById('cond-color-target');
+    condBarColor = document.getElementById('cond-bar-color');
+    condColorOptions = document.getElementById('cond-color-options');
+    condBarOptions = document.getElementById('cond-bar-options');
+    numberFormatSection = document.getElementById('number-format-section');
+    condFormatSection = document.getElementById('cond-format-section');
+
+    // Events – Step 1
     btnNext.addEventListener('click', onNext);
     btnCancel.addEventListener('click', onCancel);
+
+    // Events – Step 2
     btnBack.addEventListener('click', onBack);
     btnCancel2.addEventListener('click', onCancel);
-    btnOk.addEventListener('click', onOk);
+    btnNext2.addEventListener('click', onNext2);
     btnSelectAll.addEventListener('click', onSelectAll);
     btnClearAll.addEventListener('click', onClearAll);
+
+    // Events – Step 3
+    btnBack2.addEventListener('click', onBack2);
+    btnCancel3.addEventListener('click', onCancel);
+    btnOk.addEventListener('click', onOk);
+
+    // Format column selector
+    formatColumnSelect.addEventListener('change', onFormatColumnChange);
+
+    // Conditional type change
+    condType.addEventListener('change', function () {
+      var t = condType.value;
+      condColorOptions.style.display = t === 'colorScale' ? '' : 'none';
+      condBarOptions.style.display = t === 'dataBar' ? '' : 'none';
+    });
 
     // Initialize the dialog extension context
     tableau.extensions.initializeDialogAsync().then(function () {
@@ -77,9 +129,7 @@
       return;
     }
 
-    // Check if we have a previously saved worksheet
     var saved = tableau.extensions.settings.get('worksheetName') || '';
-    // Guard: if saved is a JSON payload, extract the real name
     if (saved && saved.charAt(0) === '{') {
       try { var p = JSON.parse(saved); if (p && p.worksheetName) saved = p.worksheetName; } catch (e) {}
     }
@@ -96,7 +146,6 @@
       }
 
       li.addEventListener('click', function () {
-        // Deselect all
         listEl.querySelectorAll('li').forEach(function (el) {
           el.classList.remove('selected');
         });
@@ -109,9 +158,6 @@
     });
   }
 
-  /**
-   * Map a Tableau dataType to a normalized effective type.
-   */
   function mapDataType(tableauType) {
     if (tableauType === 'float' || tableauType === 'int' || tableauType === 'real') {
       return 'number';
@@ -126,7 +172,6 @@
   async function onNext() {
     if (!selectedWorksheet) return;
 
-    // Show step 2, hide step 1
     stepWorksheet.style.display = 'none';
     stepFields.style.display = '';
     fieldListEl.innerHTML = '<div class="loading-fields">Loading fields…</div>';
@@ -135,9 +180,7 @@
       var fields = await fetchFieldNames(selectedWorksheet);
       allFields = fields;
 
-      // Restore previously saved selection if same worksheet
       var savedWs = tableau.extensions.settings.get('worksheetName') || '';
-      // Guard: if savedWs is a JSON payload, extract the real name
       if (savedWs && savedWs.charAt(0) === '{') {
         try { var pw = JSON.parse(savedWs); if (pw && pw.worksheetName) savedWs = pw.worksheetName; } catch (e) {}
       }
@@ -149,7 +192,6 @@
 
       var allFieldNames = allFields.map(function (f) { return f.fieldName; });
 
-      // If same worksheet and we have saved fields, use those; otherwise check all
       if (savedWs === selectedWorksheet && savedFields && Array.isArray(savedFields)) {
         checkedFields = new Set(savedFields.filter(function (f) {
           return allFieldNames.indexOf(f) >= 0;
@@ -158,9 +200,11 @@
         checkedFields = new Set(allFieldNames);
       }
 
-      // Restore saved renames and types
       fieldRenames = {};
       fieldTypes = {};
+      numberFormats = {};
+      conditionalFormats = {};
+
       if (savedWs === selectedWorksheet) {
         var renamesJson = tableau.extensions.settings.get('columnRenames') || '';
         if (renamesJson) {
@@ -171,13 +215,11 @@
           try { fieldTypes = JSON.parse(typesJson); } catch (e) { /* ignore */ }
         }
 
-        // Restore saved column order
         var orderJson = tableau.extensions.settings.get('columnOrder') || '';
         if (orderJson) {
           try {
             var savedOrder = JSON.parse(orderJson);
             if (Array.isArray(savedOrder) && savedOrder.length > 0) {
-              // Sort allFields to match savedOrder
               var orderMap = {};
               savedOrder.forEach(function (fn, i) { orderMap[fn] = i; });
               allFields.sort(function (a, b) {
@@ -188,6 +230,16 @@
             }
           } catch (e) { /* ignore */ }
         }
+
+        // Restore format settings
+        var numFmtJson = tableau.extensions.settings.get('numberFormats') || '';
+        if (numFmtJson) {
+          try { numberFormats = JSON.parse(numFmtJson); } catch (e) { /* ignore */ }
+        }
+        var condFmtJson = tableau.extensions.settings.get('conditionalFormats') || '';
+        if (condFmtJson) {
+          try { conditionalFormats = JSON.parse(condFmtJson); } catch (e) { /* ignore */ }
+        }
       }
 
       renderFieldChecklist();
@@ -196,10 +248,132 @@
     }
   }
 
-  /**
-   * Fetch column/field names from a worksheet using summary data.
-   * Returns [{ fieldName, dataType }].
-   */
+  /** Move to step 3: format configuration */
+  function onNext2() {
+    if (checkedFields.size === 0) {
+      alert('Please select at least one field.');
+      return;
+    }
+
+    stepFields.style.display = 'none';
+    stepFormat.style.display = '';
+
+    populateFormatColumnSelector();
+  }
+
+  function onBack2() {
+    // Save current format state before going back
+    saveCurrentFormatColumn();
+    stepFormat.style.display = 'none';
+    stepFields.style.display = '';
+  }
+
+  function populateFormatColumnSelector() {
+    formatColumnSelect.innerHTML = '';
+
+    // Only show checked numeric columns
+    var numericFields = allFields.filter(function (f) {
+      if (!checkedFields.has(f.fieldName)) return false;
+      var type = fieldTypes[f.fieldName] || mapDataType(f.dataType);
+      return type === 'number';
+    });
+
+    if (numericFields.length === 0) {
+      var opt = document.createElement('option');
+      opt.textContent = '(No numeric columns selected)';
+      opt.disabled = true;
+      formatColumnSelect.appendChild(opt);
+      numberFormatSection.style.display = 'none';
+      condFormatSection.style.display = 'none';
+      return;
+    }
+
+    numberFormatSection.style.display = '';
+    condFormatSection.style.display = '';
+
+    numericFields.forEach(function (f) {
+      var opt = document.createElement('option');
+      opt.value = f.fieldName;
+      opt.textContent = fieldRenames[f.fieldName] || f.fieldName;
+      formatColumnSelect.appendChild(opt);
+    });
+
+    // Load first column's format
+    onFormatColumnChange();
+  }
+
+  function onFormatColumnChange() {
+    // Save previous column's format
+    saveCurrentFormatColumn();
+
+    var fn = formatColumnSelect.value;
+    if (!fn) return;
+
+    // Load number format
+    var nf = numberFormats[fn] || {};
+    fmtDecimals.value = nf.decimals != null ? nf.decimals : 0;
+    fmtThousands.value = nf.thousands || '';
+    fmtPrefix.value = nf.prefix || '';
+    fmtSuffix.value = nf.suffix || '';
+    fmtCompact.value = nf.compact || '';
+
+    // Load conditional format
+    var cf = conditionalFormats[fn] || {};
+    condType.value = cf.type || '';
+    condColorMin.value = cf.colorMin || '#ffffff';
+    condColorMax.value = cf.colorMax || '#5b6abf';
+    condColorTarget.value = cf.target || 'background';
+    condBarColor.value = cf.barColor || '#5b6abf';
+
+    // Show/hide conditional options
+    condColorOptions.style.display = cf.type === 'colorScale' ? '' : 'none';
+    condBarOptions.style.display = cf.type === 'dataBar' ? '' : 'none';
+  }
+
+  var lastFormatColumn = null;
+
+  function saveCurrentFormatColumn() {
+    var fn = formatColumnSelect.value;
+    if (!fn) return;
+
+    // Number format
+    var decimals = parseInt(fmtDecimals.value, 10);
+    var thousands = fmtThousands.value;
+    var prefix = fmtPrefix.value.trim();
+    var suffix = fmtSuffix.value.trim();
+    var compact = fmtCompact.value;
+
+    if (decimals || thousands || prefix || suffix || compact) {
+      numberFormats[fn] = {
+        decimals: decimals || 0,
+        thousands: thousands || '',
+        prefix: prefix || '',
+        suffix: suffix || '',
+        compact: compact || '',
+      };
+    } else {
+      delete numberFormats[fn];
+    }
+
+    // Conditional format
+    var ct = condType.value;
+    if (ct === 'colorScale') {
+      conditionalFormats[fn] = {
+        type: 'colorScale',
+        colorMin: condColorMin.value,
+        colorMax: condColorMax.value,
+        target: condColorTarget.value,
+      };
+    } else if (ct === 'dataBar') {
+      conditionalFormats[fn] = {
+        type: 'dataBar',
+        barColor: condBarColor.value,
+      };
+    } else {
+      delete conditionalFormats[fn];
+    }
+  }
+
   async function fetchFieldNames(worksheetName) {
     var dashboard = tableau.extensions.dashboardContent.dashboard;
     var worksheet = dashboard.worksheets.find(function (ws) {
@@ -218,15 +392,12 @@
       columns = dataTable.columns;
     }
 
-    // Apply the same un-pivot detection to get correct field names
     var fieldNames = columns.map(function (c) { return c.fieldName; });
     var mnIdx = fieldNames.indexOf('Measure Names');
     var mvIdx = fieldNames.indexOf('Measure Values');
 
     if (mnIdx >= 0 && mvIdx >= 0) {
-      // Need to read measure names from the data to know un-pivoted column names
       var measureNames = await fetchMeasureNames(worksheet, mnIdx);
-      // Dimension fields = everything except Measure Names and Measure Values
       var dimFields = [];
       columns.forEach(function (c) {
         if (c.fieldName !== 'Measure Names' && c.fieldName !== 'Measure Values') {
@@ -244,7 +415,6 @@
     });
   }
 
-  /** Read unique Measure Names values from the worksheet data */
   async function fetchMeasureNames(worksheet, mnColIndex) {
     var names = [];
     var seen = {};
@@ -285,10 +455,10 @@
       row.className = 'field-item';
       row.dataset.fieldIndex = idx;
 
-      // Drag handle (grip)
+      // Drag handle
       var grip = document.createElement('span');
       grip.className = 'drag-handle';
-      grip.textContent = '\u2630'; // ☰
+      grip.textContent = '\u2630';
       grip.addEventListener('mousedown', function (ev) {
         onDragStart(ev, idx);
       });
@@ -330,7 +500,6 @@
           delete fieldRenames[name];
         }
       });
-      // Prevent header click when interacting with input
       renameInput.addEventListener('click', function (e) { e.stopPropagation(); });
 
       // Type dropdown
@@ -348,7 +517,6 @@
         opt.textContent = t.label;
         typeSelect.appendChild(opt);
       });
-      // Set value: use saved override, or auto-detected
       typeSelect.value = fieldTypes[name] || autoType;
       typeSelect.addEventListener('change', function () {
         var chosen = typeSelect.value;
@@ -400,7 +568,7 @@
     document.addEventListener('mouseup', onUp);
   }
 
-  // ── Drag-to-Reorder (mouse events – works in Tableau CEF) ──
+  // ── Drag-to-Reorder ──
 
   var dragSrcIndex = null;
   var dragActive = false;
@@ -463,15 +631,12 @@
       return;
     }
 
-    // Determine insert position
     var rect = row.getBoundingClientRect();
     var midY = rect.top + rect.height / 2;
     var insertBefore = e.clientY < midY;
 
-    // Remove dragged item
     var item = allFields.splice(dragSrcIndex, 1)[0];
 
-    // Recalculate target after splice
     var newTarget = targetIndex;
     if (dragSrcIndex < targetIndex) newTarget--;
     if (!insertBefore) newTarget++;
@@ -481,7 +646,6 @@
     renderFieldChecklist();
   }
 
-  /** Find the .field-item row at a given Y coordinate */
   function getRowAtY(clientY) {
     var rows = fieldListEl.querySelectorAll('.field-item');
     for (var i = 0; i < rows.length; i++) {
@@ -516,6 +680,10 @@
 
   function onOk() {
     if (!selectedWorksheet) return;
+
+    // Save current format column state
+    saveCurrentFormatColumn();
+
     // Must have at least one field selected
     if (checkedFields.size === 0) {
       alert('Please select at least one field.');
@@ -531,7 +699,7 @@
     tableau.extensions.settings.set('worksheetName', selectedWorksheet);
     tableau.extensions.settings.set('selectedFields', JSON.stringify(fieldsArray));
 
-    // Save renames (only non-empty)
+    // Save renames
     var cleanRenames = {};
     Object.keys(fieldRenames).forEach(function (k) {
       if (fieldRenames[k] && fieldRenames[k].trim()) {
@@ -540,21 +708,26 @@
     });
     tableau.extensions.settings.set('columnRenames', JSON.stringify(cleanRenames));
 
-    // Save type overrides (only non-default)
+    // Save type overrides
     tableau.extensions.settings.set('columnTypes', JSON.stringify(fieldTypes));
 
-    // Save full column order (all fields in current order)
+    // Save column order
     var columnOrder = allFields.map(function (f) { return f.fieldName; });
     tableau.extensions.settings.set('columnOrder', JSON.stringify(columnOrder));
 
+    // Save format settings
+    tableau.extensions.settings.set('numberFormats', JSON.stringify(numberFormats));
+    tableau.extensions.settings.set('conditionalFormats', JSON.stringify(conditionalFormats));
+
     tableau.extensions.settings.saveAsync().then(function () {
-      // Pass all config via payload so parent doesn't depend on settings timing
       var payload = JSON.stringify({
         worksheetName: selectedWorksheet,
         selectedFields: fieldsArray,
         columnRenames: cleanRenames,
         columnTypes: fieldTypes,
         columnOrder: columnOrder,
+        numberFormats: numberFormats,
+        conditionalFormats: conditionalFormats,
       });
       tableau.extensions.ui.closeDialog(payload);
     });

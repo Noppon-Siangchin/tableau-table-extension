@@ -13,12 +13,35 @@
   <div class="toolbar-left">
     <input type="text" id="global-search" placeholder="Search all columns…" autocomplete="off"/>
     <span id="row-count" class="row-count"></span>
+    <span id="filter-count-badge" class="filter-count-badge"></span>
   </div>
   <div class="toolbar-right">
-    <button id="btn-columns" title="Show/hide columns">&#9776; Columns</button>
-    <button id="btn-configure" title="Configure worksheet">&#9881; Configure</button>
-    <button id="btn-export-csv" title="Export CSV">&#128196; CSV</button>
-    <button id="btn-export-excel" title="Export Excel">&#128202; Excel</button>
+    <button id="btn-expand-all" class="toolbar-btn" title="Expand All" style="display:none;">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="7 13 12 18 17 13"/><polyline points="7 6 12 11 17 6"/></svg>
+    </button>
+    <button id="btn-collapse-all" class="toolbar-btn" title="Collapse All" style="display:none;">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 11 12 6 7 11"/><polyline points="17 18 12 13 7 18"/></svg>
+    </button>
+    <button id="btn-columns" class="toolbar-btn" title="Columns">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="18" rx="1"/><rect x="14" y="3" width="7" height="18" rx="1"/></svg>
+    </button>
+    <button id="btn-configure" class="toolbar-btn" title="Configure">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    </button>
+    <div class="toolbar-separator"></div>
+    <button id="btn-export-csv" class="toolbar-btn" title="Export CSV">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+    </button>
+    <button id="btn-export-excel" class="toolbar-btn" title="Export Excel">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><rect x="8" y="12" width="8" height="6" rx="1"/></svg>
+    </button>
+    <div class="toolbar-separator"></div>
+    <button id="btn-theme" class="toolbar-btn theme-toggle-btn" title="Toggle Theme">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <g class="sun"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></g>
+        <g class="moon"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></g>
+      </svg>
+    </button>
   </div>
 </div>
 
@@ -29,7 +52,10 @@
     <tbody id="table-body"></tbody>
   </table>
   <div id="empty-message" class="empty-message" style="display:none;">
-    No data to display. Right-click &rarr; Configure to select a worksheet.
+    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="3" x2="9" y2="21"/>
+    </svg>
+    <span>No data to display. Click Configure to select a worksheet.</span>
   </div>
 </div>
 
@@ -54,6 +80,11 @@
 
 <!-- Shared filter dropdown (positioned dynamically) -->
 <div id="filter-dropdown" class="filter-dropdown" style="display:none;">
+  <!-- Mode switcher bar -->
+  <div id="filter-mode-bar" class="filter-mode-bar" style="display:none;">
+    <button id="filter-mode-list" class="active">List</button>
+    <button id="filter-mode-condition">Condition</button>
+  </div>
   <!-- TEXT filter section -->
   <div id="filter-text-section">
     <div class="filter-search-wrap">
@@ -87,6 +118,16 @@
       <input type="date" id="filter-date-to"/>
     </label>
   </div>
+  <!-- CONDITION filter section -->
+  <div id="filter-condition-section" class="filter-condition-section" style="display:none;">
+    <select id="filter-condition-op"></select>
+    <div class="filter-condition-row">
+      <input type="text" id="filter-condition-val" placeholder="Value…"/>
+    </div>
+    <div class="filter-condition-row" id="filter-condition-row2" style="display:none;">
+      <input type="text" id="filter-condition-val2" placeholder="Value 2…"/>
+    </div>
+  </div>
   <!-- Shared footer -->
   <div class="filter-footer">
     <button id="filter-apply" class="btn-primary">Apply</button>
@@ -108,6 +149,9 @@
   </div>
 </div>
 
+<!-- Context menu (positioned dynamically) -->
+<div id="context-menu" class="context-menu" style="display:none;"></div>
+
 <!-- Tableau Extensions Library: try CDN first, fallback to local copy -->
 <script src="https://extensions.tableaucdn.com/extensions-api/lib/tableau.extensions.1.latest.min.js"></script>
 <script>if(typeof tableau==='undefined'){document.write('<script src="lib/tableau.extensions.1.latest.min.js"><\/script>');}</script>
@@ -117,11 +161,17 @@
 
 <!-- App modules (order matters) -->
 <script src="js/dataManager.js"></script>
+<script src="js/formatManager.js"></script>
 <script src="js/tableRenderer.js"></script>
 <script src="js/sortManager.js"></script>
 <script src="js/filterManager.js"></script>
 <script src="js/paginationManager.js"></script>
 <script src="js/exportManager.js"></script>
+<script src="js/contextMenu.js"></script>
+<script src="js/columnResizeManager.js"></script>
+<script src="js/groupManager.js"></script>
+<script src="js/themeManager.js"></script>
+<script src="js/selectionManager.js"></script>
 <script src="js/app.js"></script>
 
 </body>

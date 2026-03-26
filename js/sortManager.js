@@ -28,6 +28,15 @@
   }
 
   /**
+   * Directly set sort to a specific column and direction (for context menu).
+   * @param {number} colIndex
+   * @param {'asc'|'desc'} direction
+   */
+  function setSort(colIndex, direction) {
+    sortState = { colIndex: colIndex, direction: direction };
+  }
+
+  /**
    * Apply current sort to an array of rows (returns a new sorted array).
    * @param {{ value: any, formattedValue: string }[][]} rows
    * @param {{ fieldName: string, dataType: string, index: number }[]} columns
@@ -70,6 +79,7 @@
 
   window.SenestiaTable.SortManager = {
     toggle: toggle,
+    setSort: setSort,
     apply: apply,
     getState: getState,
     reset: reset,
